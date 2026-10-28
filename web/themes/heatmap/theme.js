@@ -86,7 +86,7 @@ export function mount(stage, kit) {
     frame(dt) {
       const ease = 1 - Math.exp(-dt / 0.25); // reaches a new state in about half a second
       const { ctx, w, h } = kit.fitCanvas(canvas);
-      ctx.fillStyle = '#15110f';
+      ctx.fillStyle = '#545563';
       ctx.fillRect(0, 0, w, h);
       const G = grid;
       const rects = kit.layout(zones.length, w, h);
@@ -127,7 +127,7 @@ export function mount(stage, kit) {
         ctx.fillStyle = colors[dot.z]; // dots take their zone's colour
         ctx.fill();
         ctx.lineWidth = 2;
-        ctx.strokeStyle = dot.down ? '#f6efe8' : '#15110f';
+        ctx.strokeStyle = dot.down ? '#f6efe8' : '#545563';
         ctx.stroke();
         ctx.globalAlpha = 1;
       }

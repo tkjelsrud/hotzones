@@ -79,7 +79,8 @@ async function checkIn(msg) {
 }
 
 function updateStatus() {
-  const zone = vote && room.zones[vote.z];
+  const current = cell || vote; // while touching, the zone under the finger
+  const zone = current && room.zones[current.z];
   $('room').textContent = zone ? `Your vote: ${zone}` : room.zones.length ? 'Touch a zone to vote' : `Room ${code}`;
   $('people').textContent = `${room.n} here`;
 }
@@ -126,7 +127,9 @@ function move(e) {
   const inside = (f, c) => f >= c - HYSTERESIS && f < c + 1 + HYSTERESIS;
   if (cell && cell.z === z && inside(fu, cell.u) && inside(fv, cell.v)) return;
   const clamp = (n) => Math.max(0, Math.min(G - 1, Math.floor(n)));
+  const newZone = cell?.z !== z;
   cell = { z, u: clamp(fu), v: clamp(fv) };
+  if (newZone) updateStatus();
 }
 
 // --- drawing -----------------------------------------------------------------------
@@ -139,13 +142,13 @@ function zoneRects(w, h) {
 
 function draw() {
   const { ctx, w, h } = fitCanvas(pad);
-  ctx.fillStyle = '#15110f';
+  ctx.fillStyle = '#545563';
   ctx.fillRect(0, 0, w, h);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
   if (!room.zones.length) {
-    ctx.fillStyle = '#b3a69c';
+    ctx.fillStyle = '#cfd0d9';
     ctx.font = '500 18px system-ui, sans-serif';
     ctx.fillText('Waiting for the facilitator…', w / 2, h / 2);
   }
@@ -166,7 +169,7 @@ function draw() {
     ctx.fillStyle = '#f6efe8';
     ctx.font = `600 ${size}px system-ui, sans-serif`;
     ctx.fillText(room.zones[z], r.x + r.w / 2, r.y + r.h / 2 - size * 0.6);
-    ctx.fillStyle = '#b3a69c';
+    ctx.fillStyle = '#cfd0d9';
     ctx.font = `500 ${size * 0.6}px system-ui, sans-serif`;
     const count = room.counts[z] || 0;
     ctx.fillText(`${count} ${count === 1 ? 'vote' : 'votes'}`, r.x + r.w / 2, r.y + r.h / 2 + size * 0.6);

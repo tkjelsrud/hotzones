@@ -1,9 +1,9 @@
 :root {
-  --bg: #15110f;
-  --surface: #221b18;
-  --line: #3a2f2a;
+  --bg: #545563;
+  --surface: #61626f;
+  --line: #6e6f7c;
   --text: #f6efe8;
-  --muted: #b3a69c;
+  --muted: #cfd0d9;
   --accent: #ff8c2e;
   --danger: #e8333a;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;

@@ -11,11 +11,15 @@ const PRO_CON = await fetch('data/wordings.json')
   .catch(() => []);
 const pair = PRO_CON.length ? PRO_CON[Math.floor(Math.random() * PRO_CON.length)] : ['Agree', 'Disagree'];
 
-// The random pair names the first two zones; any extra zones are "Option 3", "Option 4", ...
-const defaultNames = (n) => [...pair, ...Array.from({ length: n - 2 }, (_, i) => `Option ${i + 3}`)];
+const themeDefaults = () => findTheme($('theme').value).defaults;
 
-// A name the host hasn't typed themselves, so it can be replaced when the zone count changes.
-const isDefaultName = (name) => pair.includes(name) || /^Option \d$/.test(name);
+// A theme's own labels if it has them; otherwise the random pair for the first two zones and "Option 3", "Option 4", ...
+const defaultNames = (n) =>
+  themeDefaults()?.names.slice(0, n) || [...pair, ...Array.from({ length: n - 2 }, (_, i) => `Option ${i + 3}`)];
+
+// A name the host hasn't typed themselves, so it can be replaced when the theme or zone count changes.
+const isDefaultName = (name) =>
+  pair.includes(name) || /^Option \d$/.test(name) || THEMES.some((t) => t.defaults?.names.includes(name));
 const SESSION_KEY = 'hz-host';
 
 const hideSplash = showSplash();
@@ -31,12 +35,14 @@ function renderZoneCounts() {
   $('zone-count').innerHTML = '';
   for (let n = minZones; n <= maxZones; n++) $('zone-count').append(new Option(n, n));
   $('zone-count').value = Math.max(minZones, Math.min(maxZones, current));
-  $('zone-count').disabled = minZones === maxZones;
+  $('zone-count').closest('label').hidden = minZones === maxZones; // a fixed zone count needs no choice
   renderNameInputs();
 }
 
-// One Riso colour per zone: Green and Bright Red for the first two, a random unused ink for the rest.
+// One Riso colour per zone: the theme's own colours if it has them, otherwise Green and Bright Red for the
+// first two and a random unused ink for the rest. Switching theme starts the colours over.
 let colors = [];
+$('theme').addEventListener('change', () => { colors = []; });
 
 function randomFreeColor() {
   const free = RISO.filter((c) => !colors.includes(c.hex));
@@ -49,7 +55,10 @@ function renderNameInputs() {
   const current = [...$('zone-names').querySelectorAll('input')].map((i) => i.value);
   const defaults = defaultNames(n);
   colors = colors.slice(0, n);
-  while (colors.length < n) colors.push(colors.length < 2 ? RISO[colors.length].hex : randomFreeColor());
+  while (colors.length < n) {
+    const i = colors.length;
+    colors.push(themeDefaults()?.colors[i] || (i < 2 ? RISO[i].hex : randomFreeColor()));
+  }
 
   $('zone-names').innerHTML = '';
   for (let i = 0; i < n; i++) {

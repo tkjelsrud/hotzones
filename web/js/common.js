@@ -72,11 +72,13 @@ export function playerId() {
 }
 
 // Zone rectangles for a screen. Landscape puts zones side by side; portrait stacks them, except:
-// two zones are always side by side (left/right reads naturally), and 'match' copies the landscape arrangement.
+// two zones are always side by side (left/right reads naturally), 'match' copies the landscape arrangement,
+// and 'row' puts every zone side by side in one row (for themes that are a left-to-right scale).
 export function layout(n, w, h, phoneLayout = 'fit') {
   const wide = w >= h || n === 2 || phoneLayout === 'match';
   let cols, rows;
-  if (n <= 3) [cols, rows] = wide ? [n, 1] : [1, n];
+  if (phoneLayout === 'row') [cols, rows] = [n, 1];
+  else if (n <= 3) [cols, rows] = wide ? [n, 1] : [1, n];
   else if (n === 4) [cols, rows] = [2, 2];
   else [cols, rows] = wide ? [3, 2] : [2, 3];
   const cw = w / cols, ch = h / rows;

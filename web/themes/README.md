@@ -6,7 +6,8 @@ A theme decides how the shared screen looks. Everything else — setup, polling,
 
 1. Create a folder `web/themes/<id>/` with a `theme.js`. Put its CSS, images and sounds in the same folder.
 2. Add one line to `registry.js`: `{ id, name, minZones, maxZones, phoneLayout }`.
-   `phoneLayout` is `'fit'` (phones stack 3+ zones to suit a tall screen) or `'match'` (phones copy the shared screen's arrangement). Two zones are always side by side.
+   `phoneLayout` is `'fit'` (phones stack 3+ zones to suit a tall screen), `'match'` (phones copy the shared screen's arrangement) or `'row'` (all zones side by side in one row, for a left-to-right scale). Two zones are always side by side.
+   Optional `defaults: { names, colors }` gives the theme its own starting labels and colours (e.g. a fixed scale).
 
 The host page loads `theme.js` with a dynamic `import()` only when a session uses it.
 
