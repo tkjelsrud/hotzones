@@ -4,8 +4,9 @@
 
 const STAGES = 4;
 const SWAP_SECONDS = 0.35; // how long the crossfade between two houses takes
-const BRICK_SHIFT = 0.15; // the brick house is wider on the left (the wing), so it moves right to stay centred
-const GARAGE = { x: -0.8, w: 0.42, h: 0.3 }; // the garage door in the wing, in house widths, before the shift
+const BEST_SCALE = 1.15; // the best house is drawn a little larger than the others
+export const BRICK_SHIFT = 0.15; // the brick house is wider on the left (the wing), so it moves right to stay centred
+export const GARAGE = { x: -0.8, w: 0.42, h: 0.3 }; // the garage door in the wing, in house widths, before the shift
 // The car's visit, in seconds: drive up to the garage, open the door, the car is gone inside, close the door.
 const CAR = { drive: 3.2, open: 0.9, vanish: 0.5, close: 0.9 };
 
@@ -74,7 +75,7 @@ export function mount(stage, kit) {
         visitIn = nextVisit(car ? 5 : 0); // the car comes a little less often
       }
       if (weed && !drawTumbleweed(ctx, weed, dt, w, groundY - size * 0.05)) weed = null;
-      const visit = car && carVisit(car, dt, w, size);
+      const visit = car && carVisit(car, dt, -w / 2 - size * 0.3, size);
       if (visit?.done) car = null;
 
       const alpha = voted ? 1 : 0.45; // no votes yet: a faint house in the middle of the scale
@@ -108,15 +109,15 @@ export function mount(stage, kit) {
 }
 
 // Seconds until the next visitor: somewhere between 10 and 30, plus `extra`.
-const nextVisit = (extra = 0) => 10 + extra + Math.random() * 20;
+export const nextVisit = (extra = 0) => 10 + extra + Math.random() * 20;
 
 const ease = (t) => 1 - (1 - Math.min(1, Math.max(0, t))) ** 3;
 
 // Where the car and the garage door are, `car.t` seconds into its visit. Positions are relative to the
-// middle of the screen at ground level. Returns { door, car: { x, alpha, wheel } | null, done }.
-function carVisit(car, dt, w, s) {
+// brick house's base; the car starts at startX (off screen). Returns { door, car: { x, alpha, wheel } | null, done }.
+export function carVisit(car, dt, startX, s) {
   car.t += dt;
-  const doorX = (GARAGE.x + GARAGE.w / 2 + BRICK_SHIFT) * s, startX = -w / 2 - s * 0.3;
+  const doorX = (GARAGE.x + GARAGE.w / 2 + BRICK_SHIFT) * s * BEST_SCALE;
   let t = car.t;
   if (t < CAR.drive) {
     const x = startX + (doorX - startX) * ease(t / CAR.drive);
@@ -130,7 +131,7 @@ function carVisit(car, dt, w, s) {
 }
 
 // A red convertible facing right, wheels on the ground at (car.x, 0).
-function drawCar(ctx, s, car) {
+export function drawCar(ctx, s, car) {
   const L = s * 0.36;
   ctx.save();
   ctx.globalAlpha = car.alpha;
@@ -168,7 +169,7 @@ function drawCar(ctx, s, car) {
 }
 
 // A tangle of loops, rolling in from the left or the right.
-function newTumbleweed(s) {
+export function newTumbleweed(s) {
   const r = s * (0.1 + Math.random() * 0.03);
   return {
     r,
@@ -183,7 +184,7 @@ function newTumbleweed(s) {
 }
 
 // Moves and draws the tumbleweed along the ground line. Returns false once it has left the screen.
-function drawTumbleweed(ctx, weed, dt, w, groundY) {
+export function drawTumbleweed(ctx, weed, dt, w, groundY) {
   if (weed.x === null) weed.x = weed.dir > 0 ? -weed.r * 2 : w + weed.r * 2;
   weed.t += dt;
   weed.x += weed.dir * weed.speed * dt;
@@ -288,33 +289,33 @@ export const HOUSES = [
     shape(ctx, [[s * 0.55, -wh * 0.9], [s * 0.66, -wh * 0.86], [s * 0.67 + sway, -wh * 0.5], [s * 0.56 + sway, -wh * 0.54]]);
   },
 
-  // 1: wobbly – a lean plank shack with a plaster patch, a tin shed roof with one rusty sheet,
-  // a plank door, a window with a hanging shutter and a prop holding up one side.
+  // 1: wobbly – a lean shack of sun-bleached planks, a clean tin shed roof, a faded blue door,
+  // a window with a hanging shutter and a prop holding up one side.
   (ctx, s) => {
     const wh = s * 0.6;
     ctx.fillStyle = '#a3906e';
     shape(ctx, [[-s * 0.6, s * 0.03], [s * 0.6, s * 0.03], [s * 0.56, -s * 0.015], [-s * 0.56, -s * 0.015]]);
     const wall = [[-s * 0.45, 0], [s * 0.45, 0], [s * 0.44, -wh * 0.9], [-s * 0.46, -wh * 1.04]];
-    ctx.fillStyle = '#8f7a62';
+    ctx.fillStyle = '#c2ad8a';
     shape(ctx, wall);
     clipTo(ctx, wall, () => {
-      ctx.strokeStyle = '#6f5d4a';
+      ctx.strokeStyle = '#a08b69';
       ctx.lineWidth = s * 0.01;
       for (let x = -s * 0.45; x < s * 0.45; x += s * 0.075) line(ctx, x, 0, x + s * 0.004, -wh * 1.1);
-      ctx.fillStyle = '#d1a84c';
-      shape(ctx, [[s * 0.08, 0], [s * 0.46, 0], [s * 0.46, -wh * 0.5], [s * 0.12, -wh * 0.44]]);
+      ctx.fillStyle = '#b09a76'; // one newer board
+      ctx.fillRect(s * 0.3, -wh * 1.1, s * 0.075, wh * 1.1);
     });
-    ctx.fillStyle = '#6b4f36';
+    ctx.fillStyle = '#5f84a0';
     shape(ctx, [[-s * 0.31, 0], [-s * 0.12, 0], [-s * 0.12, -wh * 0.64], [-s * 0.31, -wh * 0.62]]);
-    ctx.strokeStyle = '#563e2a';
+    ctx.strokeStyle = '#4a6a82';
     ctx.lineWidth = s * 0.008;
     for (const x of [-0.25, -0.18]) line(ctx, s * x, 0, s * x, -wh * 0.63);
     ctx.fillStyle = '#2e2924';
     ctx.fillRect(s * 0.12, -wh * 0.78, s * 0.18, s * 0.15);
-    ctx.fillStyle = '#4f6d8a';
+    ctx.fillStyle = '#5f84a0';
     shape(ctx, [[s * 0.3, -wh * 0.78], [s * 0.38, -wh * 0.74], [s * 0.38, -wh * 0.5], [s * 0.3, -wh * 0.53]]);
-    sheet(ctx, s, 0, -wh * 1.0, s * 1.1, s * 0.07, 0.13, '#9aa1a6');
-    sheet(ctx, s, -s * 0.3, -wh * 1.07, s * 0.36, s * 0.075, 0.13, '#b8673a');
+    sheet(ctx, s, 0, -wh * 1.0, s * 1.1, s * 0.07, 0.13, '#a9b0b5');
+    sheet(ctx, s, -s * 0.3, -wh * 1.07, s * 0.36, s * 0.075, 0.13, '#939ba1');
     ctx.strokeStyle = '#7b5a3a';
     ctx.lineCap = 'round';
     ctx.lineWidth = s * 0.025;
@@ -365,81 +366,76 @@ export const HOUSES = [
     line(ctx, s * 0.19, -s * 0.48, s * 0.19, -s * 0.28);
   },
 
-  // 3: solid as brick – a modern brick house: a tall gable with a triangle of glass, a chimney on the slope,
-  // a wide lower wing with a garage door and wood slats, and a wide window at ground level.
+  // 3: solid as brick – a modern block: a flat roof, glass across the whole front split by steel mullions,
+  // a ground floor of dark steel cladding, a matching wing with a garage door, and a pool in front. Drawn a little larger than the rest.
   // garage: how far the garage door is open (0-1).
   (ctx, s, time, garage = 0) => {
+    s *= BEST_SCALE;
     ctx.save();
     ctx.translate(s * BRICK_SHIFT, 0);
-    const wh = s * 0.62, peakX = s * 0.175, peakY = -s * 1.17;
-    smoke(ctx, s, time, s * 0.04, -s * 1.12, 1);
-    ctx.fillStyle = '#93432f';
-    ctx.fillRect(0, -s * 1.12, s * 0.08, s * 0.26);
-    const wing = [[-s * 0.86, 0], [-s * 0.2, 0], [-s * 0.2, -s * 0.42], [-s * 0.53, -s * 0.68], [-s * 0.86, -s * 0.42]];
-    ctx.fillStyle = '#a24c38';
-    shape(ctx, wing);
-    clipTo(ctx, wing, () => bricks(ctx, s, -s * 0.86, -s * 0.7, -s * 0.2, 0));
+    const top = -s * 1.1, [x0, x1] = [-s * 0.2, s * 0.55];
+
+    // The wing matches the block: a steel frame, a row of windows above a garage door of frosted glass panels,
+    // a strip of wood slats and a flat roof.
     const [gx, gw, gh] = [GARAGE.x * s, GARAGE.w * s, GARAGE.h * s];
+    ctx.fillStyle = '#4a5058';
+    ctx.fillRect(-s * 0.86, -s * 0.46, s * 0.66, s * 0.46);
+    const band = [-s * 0.43, -gh - s * 0.03]; // the window row: top and bottom
+    for (let i = 0; i < 3; i++) {
+      const pw = (s * 0.6) / 3;
+      ctx.fillStyle = i === 1 ? '#ecd9a0' : '#b7cfdb';
+      ctx.fillRect(-s * 0.83 + i * pw + s * 0.009, band[0], pw - s * 0.018, band[1] - band[0]);
+    }
     ctx.fillStyle = '#2b2622';
     ctx.fillRect(gx, -gh, gw, gh);
     ctx.fillStyle = 'rgba(243, 217, 139, 0.2)'; // warm light inside
     ctx.fillRect(gx + gw * 0.2, -gh, gw * 0.6, gh);
     const panel = gh * (1 - garage); // a roll-up door: what is left of it hangs from the top
-    ctx.fillStyle = '#3a3f47';
+    ctx.fillStyle = '#93a7b2';
     ctx.fillRect(gx, -gh, gw, panel);
-    ctx.strokeStyle = '#2a2d33';
-    ctx.lineWidth = s * 0.006;
-    for (let y = -gh + gh / 8; y < -gh + panel; y += gh / 8) line(ctx, gx, y, gx + gw, y);
-    ctx.strokeStyle = '#7a3627';
-    ctx.lineWidth = s * 0.016;
-    ctx.strokeRect(gx, -gh, gw, gh);
-    ctx.strokeStyle = '#9a6a40';
-    ctx.lineWidth = s * 0.014;
-    for (let x = -s * 0.33; x < -s * 0.23; x += s * 0.026) line(ctx, x, 0, x, -s * 0.4);
-    const main = [[-s * 0.2, 0], [s * 0.55, 0], [s * 0.55, -wh], [peakX, peakY], [-s * 0.2, -wh]];
-    ctx.fillStyle = '#a9503b';
-    shape(ctx, main);
-    clipTo(ctx, main, () => bricks(ctx, s, -s * 0.2, peakY, s * 0.55, 0));
-    ctx.strokeStyle = '#7a3627';
-    ctx.lineWidth = s * 0.022;
-    ctx.lineJoin = 'miter';
-    for (const outline of [[[-s * 0.86, -s * 0.42], [-s * 0.53, -s * 0.68], [-s * 0.2, -s * 0.42]], [[-s * 0.2, -wh], [peakX, peakY], [s * 0.55, -wh]]]) {
-      ctx.beginPath();
-      outline.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-      ctx.stroke();
+    ctx.fillStyle = '#4a5058';
+    for (let y = -gh + gh / 4; y < -gh + panel; y += gh / 4) ctx.fillRect(gx, y - s * 0.006, gw, s * 0.012);
+    for (let i = 1; i < 4; i++) ctx.fillRect(gx + (gw * i) / 4 - s * 0.005, -gh, s * 0.01, panel);
+    ctx.fillStyle = '#9a6a40';
+    for (let x = -s * 0.33; x < -s * 0.23; x += s * 0.026) ctx.fillRect(x, -gh, s * 0.014, gh);
+    ctx.fillStyle = '#3f454c';
+    ctx.fillRect(-s * 0.89, -s * 0.49, s * 0.7, s * 0.035);
+
+    // The main block: a steel frame with glass filling the front, three floors of four panes.
+    ctx.fillStyle = '#4a5058';
+    ctx.fillRect(x0, top, x1 - x0, -top);
+    const pad = s * 0.025, gx0 = x0 + pad, gx1 = x1 - pad, gy0 = top + pad, cols = 4, rows = 3;
+    const pw = (gx1 - gx0) / cols, ph = -gy0 / rows;
+    const LIT = new Set(['0,1', '2,0', '3,1']); // a few lit rooms upstairs, the rest reflect the sky
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        ctx.fillStyle = LIT.has(`${c},${r}`) ? '#ecd9a0' : r === 0 ? '#9fbccd' : '#b7cfdb';
+        ctx.fillRect(gx0 + c * pw, gy0 + r * ph, pw, ph);
+      }
     }
-    const glass = [[-s * 0.045, -s * 0.68], [s * 0.395, -s * 0.68], [peakX, -s * 1.0]];
-    ctx.fillStyle = '#2f3743';
-    shape(ctx, glass);
+    const ground = [[x0, 0], [x1, 0], [x1, gy0 + (rows - 1) * ph], [x0, gy0 + (rows - 1) * ph]];
+    ctx.fillStyle = '#5f6770'; // the ground floor: dark steel cladding
+    shape(ctx, ground);
+    clipTo(ctx, ground, () => seams(ctx, s, x0, gy0 + (rows - 1) * ph, x1, 0, '#525962', '#6c747d'));
+    const glass = [[gx0, gy0 + (rows - 1) * ph], [gx1, gy0 + (rows - 1) * ph], [gx1, gy0], [gx0, gy0]];
     clipTo(ctx, glass, () => {
-      ctx.fillStyle = 'rgba(160, 190, 215, 0.3)'; // sky reflected in the glass
-      shape(ctx, [[-s * 0.05, -s * 0.68], [s * 0.1, -s * 0.68], [s * 0.26, -s * 1.0], [s * 0.11, -s * 1.0]]);
-      ctx.strokeStyle = '#55606c';
-      ctx.lineWidth = s * 0.008;
-      for (let x = s * 0.25; x < s * 0.4; x += s * 0.022) line(ctx, x, -s * 0.68, x, -s * 1.0);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.18)'; // a sheen across the glass
+      shape(ctx, [[gx0 + s * 0.05, 0], [gx0 + s * 0.2, 0], [gx0 + s * 0.6, gy0], [gx0 + s * 0.45, gy0]]); // only shows on the glass
     });
-    ctx.strokeStyle = '#2a2d33';
-    ctx.lineWidth = s * 0.016;
-    ctx.beginPath();
-    glass.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-    ctx.closePath();
-    ctx.stroke();
-    ctx.fillStyle = '#3a3f47';
-    ctx.fillRect(-s * 0.14, -s * 0.44, s * 0.15, s * 0.44);
-    ctx.fillStyle = '#2c2f36';
-    ctx.fillRect(s * 0.12, -s * 0.34, s * 0.4, s * 0.3);
-    ctx.fillStyle = '#c9dbe2';
-    ctx.fillRect(s * 0.14, -s * 0.32, s * 0.36, s * 0.26);
-    ctx.fillStyle = 'rgba(243, 217, 139, 0.55)';
-    ctx.fillRect(s * 0.33, -s * 0.32, s * 0.17, s * 0.26);
-    ctx.fillStyle = '#2c2f36';
-    ctx.fillRect(s * 0.31, -s * 0.34, s * 0.02, s * 0.3);
+    ctx.fillStyle = '#9a6a40';
+    ctx.fillRect(gx0 + pw * 0.2, -ph * 0.85, pw * 0.6, ph * 0.85);
+    ctx.fillStyle = '#4a5058';
+    for (let c = 1; c < cols; c++) ctx.fillRect(gx0 + c * pw - s * 0.009, gy0, s * 0.018, (rows - 1) * ph);
+    for (let r = 1; r < rows; r++) ctx.fillRect(x0, gy0 + r * ph - s * 0.016, x1 - x0, s * 0.032);
+    ctx.fillStyle = '#3f454c';
+    ctx.fillRect(x0 - s * 0.04, top - s * 0.04, x1 - x0 + s * 0.08, s * 0.045);
+    pool(ctx, s, time);
     ctx.restore();
   },
 ];
 
 // Chimney smoke: three puffs that rise and fade, then start over.
-function smoke(ctx, s, time, x, y, amount) {
+export function smoke(ctx, s, time, x, y, amount) {
   ctx.fillStyle = 'rgba(240, 240, 245, 0.7)';
   for (let i = 0; i < 3; i++) {
     const t = (time * 0.35 + i / 3) % 1;
@@ -478,8 +474,48 @@ function paper(ctx, s, cx, cy, angle) {
   ctx.restore();
 }
 
+// A pool in front of the house (below the ground line, so nearer the viewer): stone paving, water that
+// shimmers slowly, and two loungers on the paving.
+function pool(ctx, s, time) {
+  ctx.fillStyle = '#d6d3cb';
+  shape(ctx, [[-s * 0.66, s * 0.012], [s * 0.6, s * 0.012], [s * 0.64, s * 0.13], [-s * 0.7, s * 0.13]]);
+  const water = [[-s * 0.6, s * 0.03], [s * 0.18, s * 0.03], [s * 0.19, s * 0.112], [-s * 0.63, s * 0.112]];
+  const blue = ctx.createLinearGradient(0, s * 0.03, 0, s * 0.112);
+  blue.addColorStop(0, '#3fb0d3');
+  blue.addColorStop(1, '#6fd3ea');
+  ctx.fillStyle = blue;
+  shape(ctx, water);
+  clipTo(ctx, water, () => {
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+    ctx.lineWidth = s * 0.006;
+    for (let i = 0; i < 5; i++) {
+      const x = -s * 0.55 + ((i * 0.19 + time * 0.03) % 0.8) * s, y = s * (0.05 + (i % 3) * 0.02);
+      line(ctx, x, y, x + s * 0.07, y);
+    }
+  });
+  for (const x of [0.28, 0.43]) {
+    ctx.fillStyle = '#8e9399';
+    ctx.fillRect(s * x, s * 0.07, s * 0.11, s * 0.022);
+    shape(ctx, [[s * x, s * 0.07], [s * (x + 0.035), s * 0.07], [s * (x + 0.02), s * 0.04], [s * (x - 0.005), s * 0.045]]);
+    ctx.fillStyle = '#6b5a45';
+    for (const lx of [x + 0.01, x + 0.09]) ctx.fillRect(s * lx, s * 0.092, s * 0.008, s * 0.015);
+  }
+}
+
+// Standing-seam steel cladding over a rectangle: a seam line with a highlight beside it, every few centimetres.
+// Clip first to keep it inside a shape.
+function seams(ctx, s, x0, y0, x1, y1, dark, light) {
+  ctx.lineWidth = s * 0.006;
+  for (let x = x0 + s * 0.045; x < x1; x += s * 0.045) {
+    ctx.strokeStyle = dark;
+    line(ctx, x, y0, x, y1);
+    ctx.strokeStyle = light;
+    line(ctx, x + s * 0.007, y0, x + s * 0.007, y1);
+  }
+}
+
 // Brick courses over a rectangle; clip first to keep them inside a shape.
-function bricks(ctx, s, x0, y0, x1, y1) {
+export function bricks(ctx, s, x0, y0, x1, y1) {
   const row = s * 0.035;
   ctx.strokeStyle = 'rgba(0, 0, 0, 0.16)';
   ctx.lineWidth = s * 0.005;
@@ -489,7 +525,7 @@ function bricks(ctx, s, x0, y0, x1, y1) {
   }
 }
 
-function clipTo(ctx, points, draw) {
+export function clipTo(ctx, points, draw) {
   ctx.save();
   ctx.beginPath();
   points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
@@ -505,14 +541,14 @@ function blob(ctx, x, y, rx, ry) {
   ctx.fill();
 }
 
-function shape(ctx, points) {
+export function shape(ctx, points) {
   ctx.beginPath();
   points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
   ctx.closePath();
   ctx.fill();
 }
 
-function line(ctx, x1, y1, x2, y2) {
+export function line(ctx, x1, y1, x2, y2) {
   ctx.beginPath();
   ctx.moveTo(x1, y1);
   ctx.lineTo(x2, y2);

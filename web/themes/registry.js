@@ -4,16 +4,17 @@
 // 'row' puts all zones in one left-to-right row (a scale).
 // Two zones are always side by side.
 // defaults (optional): the theme's own starting labels and colours, e.g. for a fixed scale.
+// Our house and Our town share a four-step scale from shanty to brick.
+const HOUSE_SCALE = {
+  names: ['Falling apart', 'Wobbly', 'Pretty sturdy', 'Solid as brick'],
+  colors: ['#f15060', '#ffb511', '#67b346', '#00a95c'],
+};
+
 export const THEMES = [
   { id: 'heatmap', name: 'Heatmap', minZones: 2, maxZones: 6, phoneLayout: 'match' },
   { id: 'tugofwar', name: 'Tug of war', minZones: 2, maxZones: 2, phoneLayout: 'match' },
-  {
-    id: 'ourhouse', name: 'Our house', minZones: 4, maxZones: 4, phoneLayout: 'row',
-    defaults: {
-      names: ['Falling apart', 'Wobbly', 'Pretty sturdy', 'Solid as brick'],
-      colors: ['#f15060', '#ffb511', '#67b346', '#00a95c'],
-    },
-  },
+  { id: 'ourhouse', name: 'Our house', minZones: 4, maxZones: 4, phoneLayout: 'row', defaults: HOUSE_SCALE },
+  { id: 'ourtown', name: 'Our town', minZones: 4, maxZones: 4, phoneLayout: 'row', defaults: HOUSE_SCALE },
 ];
 
 export const DEFAULT_THEME = 'heatmap';

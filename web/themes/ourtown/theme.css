@@ -1,0 +1,2 @@
+/* Shown when there are more votes than houses. The scale and canvas come from Our house's stylesheet. */
+.ot-note { position: absolute; top: 3%; left: 4%; font-size: clamp(13px, 1.4vw, 20px); font-weight: 600; color: #f6efe8; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.35); }
