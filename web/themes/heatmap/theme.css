@@ -1,0 +1,6 @@
+.hm-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.hm-labels { position: absolute; inset: 0; pointer-events: none; }
+.hm-zone { position: absolute; padding: 20px 22px; display: flex; flex-direction: column; justify-content: space-between; }
+.hm-name { font-weight: 600; font-size: clamp(20px, 3.2vw, 44px); line-height: 1.1; overflow-wrap: anywhere; }
+.hm-count { align-self: flex-end; text-align: right; font-weight: 700; font-size: clamp(40px, 7vw, 110px); line-height: 1; }
+.hm-count small { display: block; font-size: 0.32em; font-weight: 500; color: var(--muted); margin-bottom: 4px; }

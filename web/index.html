@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hotzones</title>
+  <link rel="icon" href="logo.svg">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main class="panel">
+    <div class="brand"><img src="logo.svg" alt="" width="48" height="48"><h1>Hotzones</h1></div>
+    <p>Show where you stand. The facilitator starts a session, everyone joins by QR code and puts a finger on the zone they agree with.</p>
+    <a class="button" href="host.html">Start a session</a>
+    <form id="join" class="field">
+      <label for="code">Or join with a code</label>
+      <input id="code" autocomplete="off" autocapitalize="characters" maxlength="5" placeholder="ABCDE">
+      <button class="secondary">Join</button>
+    </form>
+  </main>
+  <script type="module">
+    import { showSplash } from './js/common.js';
+    showSplash()();
+    document.getElementById('join').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const code = document.getElementById('code').value.trim().toUpperCase();
+      if (code) location.href = `play.html?room=${encodeURIComponent(code)}`;
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hotzones · Host</title>
+  <link rel="icon" href="logo.svg">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <section id="setup" class="panel">
+    <div class="brand"><img src="logo.svg" alt="" width="48" height="48"><h1>New session</h1></div>
+    <label class="field">Theme
+      <select id="theme"></select>
+    </label>
+    <label class="field">Number of zones
+      <select id="zone-count"></select>
+    </label>
+    <div id="zone-names" class="field"></div>
+    <label class="field">Update rate: <output id="rate-out">2 Hz</output>
+      <input id="rate" type="range" min="1" max="10" value="2">
+    </label>
+    <button id="start">Start session</button>
+    <p id="setup-error" class="error"></p>
+  </section>
+
+  <main id="live" class="live" hidden>
+    <div id="stage" class="stage"></div>
+    <aside class="sidebar">
+      <div id="qr" class="qr"></div>
+      <div id="code" class="code"></div>
+      <div id="join-url" class="join-url"></div>
+      <div id="stats" class="stats"></div>
+      <div class="spacer"></div>
+      <label class="field">Update rate: <output id="live-rate-out"></output>
+        <input id="live-rate" type="range" min="1" max="10">
+      </label>
+      <button id="reset" class="secondary">Clear votes</button>
+      <button id="end" class="danger">End session</button>
+    </aside>
+  </main>
+
+  <section id="ended" class="panel" hidden>
+    <h2>Session ended</h2>
+    <p id="ended-text"></p>
+    <ul id="summary" class="summary"></ul>
+    <a id="download" class="button secondary" hidden>Download summary</a>
+    <a class="button" href="host.html">New session</a>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+  <script type="module" src="js/host.js"></script>
+</body>
+</html>
