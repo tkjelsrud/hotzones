@@ -3,7 +3,7 @@
 // phoneLayout: 'fit' lets phones stack 3+ zones to suit a tall screen; 'match' copies the shared screen.
 // Two zones are always side by side.
 export const THEMES = [
-  { id: 'heatmap', name: 'Heatmap', minZones: 2, maxZones: 6, phoneLayout: 'fit' },
+  { id: 'heatmap', name: 'Heatmap', minZones: 2, maxZones: 6, phoneLayout: 'match' },
   { id: 'tugofwar', name: 'Tug of war', minZones: 2, maxZones: 2, phoneLayout: 'match' },
 ];
 
