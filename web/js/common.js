@@ -1,7 +1,7 @@
 // Shared helpers for the host and player pages.
 
-// Where the Python server runs in production. Locally the server also serves these pages, so same origin.
-const PROD_API = 'https://hotzones.example.run.app';
+// Where the Python server runs in production (Cloud Run). Anywhere else the server serves these pages itself, so same origin.
+const PROD_API = 'https://hotzones-940521904806.europe-north1.run.app';
 export const API = location.hostname.endsWith('github.io') ? PROD_API : location.origin;
 
 export const PALETTE = [

@@ -7,7 +7,6 @@ Run locally:  python server.py   ->  http://localhost:8787  (also serves ../web)
 Nothing is stored. When a room closes or goes idle, its state is gone.
 Must run as a single process: all rooms live in this process's memory.
 """
-import asyncio
 import json
 import os
 import re
@@ -74,7 +73,7 @@ class Room:
         self.created_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         self.closed = False
         self.host_view = {}
-        self.task = asyncio.ensure_future(self.run())
+        self.last_tick = self.created
 
     # --- requests ----------------------------------------------------------
 
@@ -149,16 +148,17 @@ class Room:
 
     # --- the tick: decay, accumulate, snapshot -------------------------------
 
-    async def run(self):
-        last = time.monotonic()
-        while not self.closed:
-            await asyncio.sleep(1 / min(self.rate, MAX_TICK_HZ))
-            now = time.monotonic()
-            dt, last = now - last, now
-            if now - self.last_active > IDLE_SECONDS or now - self.created > MAX_LIFE_SECONDS:
-                self.close()
-            else:
-                self.tick(now, dt)
+    # The room only works when someone asks: no background loop, so a host that bills for CPU
+    # only during requests (Cloud Run) costs nothing between them.
+    def maybe_tick(self):
+        now = time.monotonic()
+        if self.host_view and now - self.last_tick < 1 / min(self.rate, MAX_TICK_HZ):
+            return
+        dt, self.last_tick = now - self.last_tick, now
+        self.tick(now, dt)
+
+    def expired(self, now):
+        return now - self.last_active > IDLE_SECONDS or now - self.created > MAX_LIFE_SECONDS
 
     def tick(self, now, dt):
         gone = [pid for pid, p in self.players.items() if now - p.seen > PLAYER_TIMEOUT]
@@ -169,6 +169,7 @@ class Room:
 
         counts = [0] * len(self.zones)
         dots = []
+        step = min(dt, 1.0)  # after a quiet gap, don't credit a finger with the whole gap
         heat = self.heat
         if heat:
             keep = (1 - HEAT_DECAY) ** dt
@@ -182,9 +183,9 @@ class Room:
                 continue
             counts[p.z] += 1
             if p.down:
-                self.dwell[p.z] += dt
+                self.dwell[p.z] += step
             # one cell per player per tick caps each person's weight; a resting vote glows less than a finger
-            heat[(p.z * GRID + p.v) * GRID + p.u] += dt if p.down else dt * RESTING_WEIGHT
+            heat[(p.z * GRID + p.v) * GRID + p.u] += step if p.down else step * RESTING_WEIGHT
             dots.append([p.id, p.z, p.u, p.v, 1 if p.down else 0])
 
         # Heat goes out sparse, as [cellIndex, 0-255, cellIndex, 0-255, ...].
@@ -233,7 +234,8 @@ def new_code():
 # Local dev (server on localhost or a LAN address): any local origin.
 def origin_allowed(request):
     origin = request.headers.get("Origin")
-    if origin is None or origin in ALLOWED_ORIGINS or origin == f"{request.scheme}://{request.host}":
+    # Same host counts as same origin: behind a proxy (Cloud Run) the request scheme is http even when the page is https.
+    if origin is None or origin in ALLOWED_ORIGINS or re.sub(r"^https?://", "", origin) == request.host:
         return True
     host = request.host.split(":")[0]
     origin_host = re.sub(r"^https?://", "", origin).split(":")[0]
@@ -261,7 +263,9 @@ def find_room(request):
     """Returns (room, None) or (None, error response)."""
     code = request.match_info["code"]
     room = rooms.get(code)
-    if room:
+    if room and room.expired(time.monotonic()):
+        room.close()
+    elif room:
         return room, None
     if code in closed_rooms:
         return None, reply(request, {"error": "closed"}, 410)
@@ -282,6 +286,8 @@ async def create_room(request):
     if len(recent) >= ROOMS_PER_IP_PER_HOUR or len(rooms) >= MAX_ROOMS:
         return reply(request, {"error": "Too many rooms right now, try again later"}, 429)
     created_by_ip[ip] = recent + [now]
+    for room in [r for r in rooms.values() if r.expired(now)]:
+        room.close()
     for code, closed_at in list(closed_rooms.items()):
         if now - closed_at > CLOSED_MEMORY:
             del closed_rooms[code]
@@ -301,6 +307,7 @@ async def play(request):
     if msg is None or not isinstance(msg.get("pid"), str) or not msg["pid"]:
         return reply(request, {"error": "bad request"}, 400)
     status, body = room.player_request(msg["pid"][:64], msg)
+    room.maybe_tick()
     return reply(request, body, status)
 
 
@@ -311,6 +318,7 @@ async def host_state(request):
     if request.query.get("token") != room.token:
         return reply(request, {"error": "not the host"}, 403)
     room.last_active = time.monotonic()
+    room.maybe_tick()
     return reply(request, room.host_view)
 
 

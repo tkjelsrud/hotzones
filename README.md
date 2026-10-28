@@ -38,7 +38,19 @@ Bodies are JSON sent as `text/plain`, so browsers skip the CORS preflight. `404`
 
 Set at the top of `server.py`: 32 × 32 cells per zone, 250 players and 50 rooms at most, 300 player requests per second per room (the phone rate drops automatically in big rooms), 10 new rooms per IP per hour, 30 minutes idle and 3 hours max per room.
 
-## Deploy (later)
+## Deploy
 
-- `web/` to GitHub Pages; set `PROD_API` in `web/js/common.js` to the server URL.
-- `server/` to any host that runs one Python process, e.g. Google Cloud Run with `--max-instances 1` (rooms live in one process's memory). Set `ALLOWED_ORIGINS` to the Pages origin.
+**Web pages** – GitHub Pages at <https://tkjelsrud.github.io/hotzones/>. `.github/workflows/pages.yml` publishes `web/` on every push to `main` that touches it (repo *Settings → Pages → Source: GitHub Actions*). `PROD_API` in `web/js/common.js` points the pages at the server.
+
+**Server** – Google Cloud Run, project `hotzones-tk`, region `europe-north1`: <https://hotzones-940521904806.europe-north1.run.app> (also serves the pages). Built from the `Dockerfile`; redeploy with:
+
+```sh
+gcloud run deploy hotzones --source . --project hotzones-tk --region europe-north1 \
+  --allow-unauthenticated --min-instances 0 --max-instances 1 --concurrency 1000 \
+  --cpu 1 --memory 512Mi --timeout 60 --cpu-throttling \
+  --set-env-vars ALLOWED_ORIGINS=https://tkjelsrud.github.io
+```
+
+- `--max-instances 1` is required: rooms live in one process's memory.
+- `--min-instances 0` and `--cpu-throttling` keep it free when idle: the server has no background loop and only works while handling requests.
+- A budget alert (50 NOK/month) on the billing account emails at 50, 90 and 100%.
