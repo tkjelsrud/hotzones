@@ -1,6 +1,6 @@
 // Facilitator screen: set up a room, show the QR code and poll the room.
 // How the room is drawn is up to the session's theme (web/themes/), loaded on demand.
-import { PALETTE, call, fitCanvas, layout, showSplash } from './common.js';
+import { PALETTE, RISO, call, fitCanvas, layout, showSplash, softField, withAlpha, zoneColors } from './common.js';
 import { DEFAULT_THEME, THEMES, findTheme, loadTheme } from '../themes/registry.js';
 
 const $ = (id) => document.getElementById(id);
@@ -35,19 +35,66 @@ function renderZoneCounts() {
   renderNameInputs();
 }
 
+// One Riso colour per zone: Green and Bright Red for the first two, a random unused ink for the rest.
+let colors = [];
+
+function randomFreeColor() {
+  const free = RISO.filter((c) => !colors.includes(c.hex));
+  const pool = free.length ? free : RISO;
+  return pool[Math.floor(Math.random() * pool.length)].hex;
+}
+
 function renderNameInputs() {
   const n = Number($('zone-count').value);
   const current = [...$('zone-names').querySelectorAll('input')].map((i) => i.value);
   const defaults = defaultNames(n);
+  colors = colors.slice(0, n);
+  while (colors.length < n) colors.push(colors.length < 2 ? RISO[colors.length].hex : randomFreeColor());
+
   $('zone-names').innerHTML = '';
   for (let i = 0; i < n; i++) {
+    const row = document.createElement('div');
+    row.className = 'zone-row';
+    const swatch = document.createElement('button');
+    swatch.type = 'button';
+    swatch.className = 'swatch';
+    swatch.style.background = colors[i];
+    swatch.setAttribute('aria-label', `Zone ${i + 1} colour`);
+    swatch.addEventListener('click', () => openPalette(row, i));
     const input = document.createElement('input');
     input.maxLength = 24;
     input.value = current[i] && !isDefaultName(current[i]) ? current[i] : defaults[i];
     input.setAttribute('aria-label', `Zone ${i + 1} name`);
-    $('zone-names').append(input);
+    row.append(swatch, input);
+    $('zone-names').append(row);
   }
 }
+
+function openPalette(row, i) {
+  const wasOpen = row.querySelector('.palette');
+  closePalette();
+  if (wasOpen) return;
+  const palette = document.createElement('div');
+  palette.className = 'palette';
+  for (const ink of RISO) {
+    const option = document.createElement('button');
+    option.type = 'button';
+    option.className = `swatch${ink.hex === colors[i] ? ' chosen' : ''}`;
+    option.style.background = ink.hex;
+    option.title = ink.name;
+    option.setAttribute('aria-label', ink.name);
+    option.addEventListener('click', () => {
+      colors[i] = ink.hex;
+      row.querySelector('.swatch').style.background = ink.hex;
+      closePalette();
+    });
+    palette.append(option);
+  }
+  row.append(palette);
+}
+
+const closePalette = () => document.querySelector('.palette')?.remove();
+document.addEventListener('click', (e) => { if (!e.target.closest('.zone-row')) closePalette(); });
 $('theme').addEventListener('change', renderZoneCounts);
 $('zone-count').addEventListener('change', renderNameInputs);
 $('rate').addEventListener('input', () => { $('rate-out').textContent = `${$('rate').value} Hz`; });
@@ -65,7 +112,7 @@ $('start').addEventListener('click', async () => {
   const session = { code: body.code, token: body.token };
   try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch { /* reload loses the session */ }
   const zones = [...$('zone-names').querySelectorAll('input')].map((i, n) => i.value.trim() || `Zone ${n + 1}`);
-  await command(session, { t: 'scene', zones, theme: $('theme').value });
+  await command(session, { t: 'scene', zones, colors, theme: $('theme').value });
   await command(session, { t: 'config', hz: Number($('rate').value) });
   goLive(session);
 });
@@ -87,6 +134,8 @@ const kit = {
   layout,
   fitCanvas,
   colorFor: (id) => PALETTE[id % PALETTE.length],
+  withAlpha,
+  softField,
   loadCss(url) {
     const href = String(url);
     if (document.querySelector(`link[href="${href}"]`)) return;
@@ -109,7 +158,8 @@ function unpack(state) {
   const heat = new Float32Array(state.zones.length * state.grid * state.grid);
   for (let i = 0; i < state.heat.length; i += 2) heat[state.heat[i]] = state.heat[i + 1] / 255;
   const players = state.dots.map(([id, z, u, v, down]) => ({ id, z, u, v, down: Boolean(down) }));
-  return { zones: state.zones, counts: state.counts, n: state.n, grid: state.grid, heat, players };
+  const colors = zoneColors(state.zones, state.colors);
+  return { zones: state.zones, colors, counts: state.counts, n: state.n, grid: state.grid, heat, players };
 }
 
 // --- live ----------------------------------------------------------------------

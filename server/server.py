@@ -34,6 +34,7 @@ ROOMS_PER_IP_PER_HOUR = 10
 PORT = int(os.environ.get("PORT", "8787"))
 ALLOWED_ORIGINS = {o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "https://tkjelsrud.github.io").split(",") if o.strip()}
 WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "web")
+HEX_COLOR = re.compile(r"#[0-9a-fA-F]{6}")
 LOCAL_HOST = re.compile(r"^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)")
 
 rooms = {}
@@ -61,6 +62,7 @@ class Room:
         self.token = secrets.token_urlsafe(16)
         self.players = {}  # pid -> Player
         self.zones = []
+        self.colors = []  # one hex colour per zone, chosen by the host; empty = clients pick
         self.theme = "heatmap"  # only stored and passed on; themes are drawn by the clients
         self.heat = None
         self.dwell = []    # seconds of finger time per zone, for the summary
@@ -111,7 +113,7 @@ class Room:
 
         p.seen = self.last_active = now
         return 200, {
-            "zones": self.zones, "theme": self.theme, "grid": GRID, "counts": self.counts, "n": len(self.players), "rate": self.rate,
+            "zones": self.zones, "colors": self.colors, "theme": self.theme, "grid": GRID, "counts": self.counts, "n": len(self.players), "rate": self.rate,
             "you": [p.z, p.u, p.v] if p.voted else None,
         }
 
@@ -128,6 +130,9 @@ class Room:
             self.zones = [str(z)[:24] for z in msg["zones"]]
             theme = str(msg.get("theme", "heatmap"))
             self.theme = theme if re.fullmatch(r"[a-z0-9-]{1,32}", theme) else "heatmap"
+            colors = msg.get("colors")
+            valid = isinstance(colors, list) and len(colors) == len(self.zones)
+            self.colors = [c.lower() for c in colors] if valid and all(isinstance(c, str) and HEX_COLOR.fullmatch(c) for c in colors) else []
             self.clear_votes()
         elif t == "config":
             try:
@@ -199,7 +204,7 @@ class Room:
 
         self.counts = counts
         self.host_view = {
-            "zones": self.zones, "theme": self.theme, "grid": GRID, "counts": counts, "heat": sparse, "dots": dots,
+            "zones": self.zones, "colors": self.colors, "theme": self.theme, "grid": GRID, "counts": counts, "heat": sparse, "dots": dots,
             "n": len(self.players), "rate": self.rate, "hostHz": self.host_hz,
         }
 

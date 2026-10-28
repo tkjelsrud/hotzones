@@ -1,5 +1,5 @@
 // Participant phone: a touch surface. Sends the finger's zone and cell, gets the counts back.
-import { call, fitCanvas, layout, playerId, showSplash } from './common.js';
+import { call, fitCanvas, layout, playerId, showSplash, softField, withAlpha, zoneColors } from './common.js';
 import { findTheme } from '../themes/registry.js';
 
 const $ = (id) => document.getElementById(id);
@@ -11,7 +11,7 @@ const code = (new URLSearchParams(location.search).get('room') || '').trim().toU
 const pid = playerId();
 const hideSplash = showSplash();
 
-const room = { zones: [], grid: 32, counts: [], n: 0, rate: 2 };
+const room = { zones: [], colors: [], grid: 32, counts: [], n: 0, rate: 2 };
 let finger = null;  // { x, y } in CSS pixels while touching
 let cell = null;    // { z, u, v } the finger is in
 let vote = null;    // { z, u, v } this player's vote: the last touched cell, as the room has it
@@ -152,16 +152,12 @@ function draw() {
 
   const rects = zoneRects(w, h);
   const chosen = cell || vote;
+  const colors = zoneColors(room.zones, room.colors);
   rects.forEach((r, z) => {
     const mine = chosen && chosen.z === z;
     const pad = 6;
-    ctx.beginPath();
-    ctx.roundRect(r.x + pad, r.y + pad, r.w - 2 * pad, r.h - 2 * pad, 14);
-    ctx.fillStyle = mine ? 'rgba(255, 140, 46, 0.18)' : '#1d1714';
-    ctx.fill();
-    ctx.lineWidth = mine ? 3 : 1.5;
-    ctx.strokeStyle = mine ? '#ff8c2e' : '#3a2f2a';
-    ctx.stroke();
+    // No edges: a soft field of the zone's colour, stronger for the zone you're in.
+    softField(ctx, r, colors[z], mine ? [[0, 0.6], [0.6, 0.3], [1, 0]] : [[0, 0.26], [0.6, 0.1], [1, 0]]);
 
     let size = Math.max(16, Math.min(28, r.w / 9));
     ctx.font = `600 ${size}px system-ui, sans-serif`;
@@ -182,10 +178,10 @@ function draw() {
     const x = r.x + ((vote.u + 0.5) / G) * r.w, y = r.y + ((vote.v + 0.5) / G) * r.h;
     ctx.beginPath();
     ctx.arc(x, y, 16, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255, 140, 46, 0.25)';
+    ctx.fillStyle = withAlpha(colors[vote.z], 0.35);
     ctx.fill();
     ctx.lineWidth = 2;
-    ctx.strokeStyle = '#ff8c2e';
+    ctx.strokeStyle = colors[vote.z];
     ctx.stroke();
     ctx.beginPath();
     ctx.arc(x, y, 6, 0, Math.PI * 2);

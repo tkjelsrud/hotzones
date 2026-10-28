@@ -29,6 +29,7 @@ export function mount(stage, kit) {
       state.zones.slice(0, 2).forEach((name, i) => {
         banners[i].querySelector('.tw-name').textContent = name;
         banners[i].querySelector('.tw-count').textContent = state.counts[i] || 0;
+        banners[i].style.setProperty('--team', state.colors[i]);
       });
       const lead = total >= 2 && Math.abs(right - left) / total >= 0.6 ? (right > left ? 1 : 0) : -1;
       banners.forEach((b, i) => b.classList.toggle('tw-winning', i === lead));
@@ -39,7 +40,7 @@ export function mount(stage, kit) {
       for (const p of state.players) {
         if (p.z > 1) continue;
         const fig = figures.get(p.id) || { id: p.id, x: null, color: kit.colorFor(p.id) };
-        Object.assign(fig, { side: p.z === 0 ? -1 : 1, down: p.down });
+        Object.assign(fig, { side: p.z === 0 ? -1 : 1, down: p.down, team: state.colors[p.z] });
         figures.set(p.id, fig);
         seen.add(p.id);
       }
@@ -210,6 +211,6 @@ function drawFigure(ctx, fig, groundY, ropeY, s, time) {
   ctx.beginPath();
   ctx.arc(head.x, head.y, 10 * s, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = fig.color;
-  ctx.fillRect(head.x - 10 * s, head.y - 6 * s, 20 * s, 4 * s); // headband in team-mate colour
+  ctx.fillStyle = fig.team;
+  ctx.fillRect(head.x - 10 * s, head.y - 6 * s, 20 * s, 4 * s); // headband in the team's colour
 }

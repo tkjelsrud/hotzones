@@ -27,19 +27,20 @@ export function mount(stage, kit) {
   const labels = stage.querySelector('.hm-labels');
   const cellCanvas = document.createElement('canvas');
 
-  let zones = [], grid = 32, counts = [];
+  let zones = [], colors = [], grid = 32, counts = [];
   let heatTarget = new Float32Array(0), heatNow = new Float32Array(0);
-  const dots = new Map(); // id -> { x, y, z, u, v, down, color }
+  const dots = new Map(); // id -> { x, y, z, u, v, down }
 
   function renderLabels() {
     labels.innerHTML = '';
-    for (const name of zones) {
+    zones.forEach((name, z) => {
       const el = document.createElement('div');
       el.className = 'hm-zone';
+      el.style.setProperty('--zone', colors[z]);
       el.innerHTML = '<div class="hm-name"></div><div class="hm-count"><small></small><span></span></div>';
       el.querySelector('.hm-name').textContent = name;
       labels.append(el);
-    }
+    });
     placeLabels();
   }
 
@@ -54,8 +55,9 @@ export function mount(stage, kit) {
 
   return {
     update(state) {
-      if (state.zones.join('\n') !== zones.join('\n')) {
+      if ([...state.zones, ...state.colors].join('\n') !== [...zones, ...colors].join('\n')) {
         zones = state.zones;
+        colors = state.colors;
         heatNow = new Float32Array(state.heat.length);
         dots.clear();
         renderLabels();
@@ -73,7 +75,7 @@ export function mount(stage, kit) {
 
       const seen = new Set();
       for (const p of state.players) {
-        const dot = dots.get(p.id) || { x: null, y: null, color: kit.colorFor(p.id) };
+        const dot = dots.get(p.id) || { x: null, y: null };
         Object.assign(dot, p);
         dots.set(p.id, dot);
         seen.add(p.id);
@@ -96,9 +98,8 @@ export function mount(stage, kit) {
       const img = cells.createImageData(G, G);
 
       rects.forEach((r, z) => {
-        const x = r.x + PAD, y = r.y + PAD, rw = r.w - 2 * PAD, rh = r.h - 2 * PAD;
-        ctx.fillStyle = '#1d1714';
-        ctx.fillRect(x, y, rw, rh);
+        // No edges: each zone is a soft field of its colour that fades out towards its sides.
+        kit.softField(ctx, r, colors[z], [[0, 0.24], [0.6, 0.1], [1, 0]]);
 
         for (let c = 0; c < G * G; c++) {
           const [red, green, blue, alpha] = heatColor(Math.min(1, heatNow[z * G * G + c]));
@@ -106,17 +107,10 @@ export function mount(stage, kit) {
         }
         cells.putImageData(img, 0, 0);
         ctx.save();
-        ctx.beginPath();
-        ctx.rect(x, y, rw, rh);
-        ctx.clip();
         ctx.imageSmoothingEnabled = true;
         ctx.filter = `blur(${Math.round(Math.min(r.w, r.h) / G)}px)`;
-        ctx.drawImage(cellCanvas, x, y, rw, rh);
+        ctx.drawImage(cellCanvas, r.x, r.y, r.w, r.h);
         ctx.restore();
-
-        ctx.strokeStyle = '#3a2f2a';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(x, y, rw, rh);
       });
 
       for (const dot of dots.values()) {
@@ -130,7 +124,7 @@ export function mount(stage, kit) {
         ctx.globalAlpha = dot.down ? 1 : 0.7;
         ctx.beginPath();
         ctx.arc(dot.x, dot.y, dot.down ? 10 : 6, 0, Math.PI * 2);
-        ctx.fillStyle = dot.color;
+        ctx.fillStyle = colors[dot.z]; // dots take their zone's colour
         ctx.fill();
         ctx.lineWidth = 2;
         ctx.strokeStyle = dot.down ? '#f6efe8' : '#15110f';

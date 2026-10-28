@@ -25,23 +25,23 @@ button, .button {
   color: var(--bg);
   background: var(--accent);
   border: 0;
-  border-radius: 10px;
+  border-radius: 999px;
   padding: 12px 20px;
   cursor: pointer;
   text-decoration: none;
   display: inline-block;
   text-align: center;
 }
-button.secondary, .button.secondary { color: var(--text); background: var(--surface); border: 1px solid var(--line); }
+button.secondary, .button.secondary { color: var(--text); background: rgba(255, 255, 255, 0.07); }
 button.danger { background: var(--danger); color: var(--text); }
 
 input, select {
   font: inherit;
   color: var(--text);
   background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px 12px;
+  border: 0;
+  border-radius: 14px;
+  padding: 11px 14px;
 }
 input[type="range"] { padding: 0; accent-color: var(--accent); }
 
@@ -55,6 +55,33 @@ input[type="range"] { padding: 0; accent-color: var(--accent); }
 }
 .brand { display: flex; align-items: center; gap: 12px; }
 .field { display: flex; flex-direction: column; gap: 6px; color: var(--muted); }
+
+/* Zone label rows: a colour swatch that opens the Riso palette, then the name. */
+.zone-row { position: relative; display: flex; gap: 8px; }
+.zone-row input { flex: 1; min-width: 0; }
+.swatch {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 50%;
+  border: 0;
+}
+.palette {
+  position: absolute;
+  z-index: 5;
+  top: 48px;
+  left: 0;
+  display: grid;
+  grid-template-columns: repeat(6, 36px);
+  gap: 8px;
+  padding: 10px;
+  background: var(--surface);
+  border-radius: 20px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.palette .swatch { width: 36px; height: 36px; }
+.palette .swatch.chosen { box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--text); }
 .error { color: var(--danger); min-height: 1.2em; margin: 0; }
 
 /* Splash */
@@ -89,8 +116,7 @@ input[type="range"] { padding: 0; accent-color: var(--accent); }
   flex-direction: column;
   gap: 14px;
   padding: 20px;
-  background: var(--surface);
-  border-left: 1px solid var(--line);
+  background: linear-gradient(to right, transparent, var(--surface) 40px);
   overflow-y: auto;
 }
 .qr img { width: 100%; image-rendering: pixelated; border-radius: 8px; background: #fff; }
@@ -99,7 +125,7 @@ input[type="range"] { padding: 0; accent-color: var(--accent); }
 .stats { font-size: 1.1rem; font-weight: 600; }
 .sidebar .spacer { flex: 1; }
 .summary { list-style: none; padding: 0; margin: 0; }
-.summary li { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.summary li { display: flex; justify-content: space-between; padding: 6px 0; }
 
 /* Player */
 body.play { overscroll-behavior: none; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
@@ -120,6 +146,6 @@ body.play { overscroll-behavior: none; touch-action: none; -webkit-user-select: 
 
 @media (max-width: 700px) {
   .live { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
-  .sidebar { border-left: 0; border-top: 1px solid var(--line); }
+  .sidebar { background: linear-gradient(to bottom, transparent, var(--surface) 40px); }
   .qr { max-width: 160px; margin: 0 auto; }
 }

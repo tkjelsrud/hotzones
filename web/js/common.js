@@ -4,6 +4,45 @@
 const PROD_API = 'https://hotzones-940521904806.europe-north1.run.app';
 export const API = location.hostname.endsWith('github.io') ? PROD_API : location.origin;
 
+// Riso ink colours for zones. Zone 1 defaults to Green ("yes"), zone 2 to Bright Red ("no").
+export const RISO = [
+  { name: 'Green', hex: '#00a95c' },
+  { name: 'Bright Red', hex: '#f15060' },
+  { name: 'Orange', hex: '#ff6c2f' },
+  { name: 'Fluorescent Pink', hex: '#ff48b0' },
+  { name: 'Sunflower', hex: '#ffb511' },
+  { name: 'Yellow', hex: '#ffe800' },
+  { name: 'Blue', hex: '#0078bf' },
+  { name: 'Teal', hex: '#00838a' },
+  { name: 'Aqua', hex: '#5ec8e5' },
+  { name: 'Purple', hex: '#765ba7' },
+  { name: 'Kelly Green', hex: '#67b346' },
+  { name: 'Burgundy', hex: '#914e72' },
+];
+
+// The zone's colour as the room has it, or the palette default for rooms without colours.
+export const zoneColors = (zones, colors) =>
+  colors?.length === zones.length ? colors : zones.map((_, z) => RISO[z % RISO.length].hex);
+
+export function withAlpha(hex, alpha) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
+// A soft, edgeless field of colour over a rectangle: strongest in the middle, fading to nothing at every edge.
+// stops: [[offset 0-1, alpha], ...]
+export function softField(ctx, r, hex, stops) {
+  ctx.save();
+  ctx.translate(r.x + r.w / 2, r.y + r.h / 2);
+  ctx.scale(r.w / 2, r.h / 2); // a unit circle becomes an ellipse that fits the rectangle
+  const field = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+  for (const [offset, alpha] of stops) field.addColorStop(offset, withAlpha(hex, alpha));
+  ctx.fillStyle = field;
+  ctx.fillRect(-1, -1, 2, 2);
+  ctx.restore();
+}
+
+// Player colours, for themes that show each person (e.g. tug-of-war figures).
 export const PALETTE = [
   '#ff6b6b', '#ffa94d', '#ffd43b', '#69db7c', '#38d9a9', '#4dabf7',
   '#748ffc', '#da77f2', '#f783ac', '#a9e34b', '#3bc9db', '#ffc078',

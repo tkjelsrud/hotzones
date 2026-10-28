@@ -31,6 +31,7 @@ export function mount(stage, kit) {
 | Field | Meaning |
 | --- | --- |
 | `zones` | Zone names, 2–6 |
+| `colors` | One hex colour per zone (Riso inks, chosen by the facilitator) |
 | `counts` | Votes per zone |
 | `n` | Players in the room |
 | `grid` | Cells per zone each way (32) |
@@ -43,7 +44,9 @@ export function mount(stage, kit) {
 | --- | --- |
 | `layout(n, w, h)` | Zone rectangles for a screen size |
 | `fitCanvas(canvas)` | Sizes a canvas for the screen's pixel density, returns `{ ctx, w, h }` |
-| `colorFor(id)` | A player's colour from the shared palette |
+| `colorFor(id)` | A player's own colour, for themes that show each person |
+| `withAlpha(hex, a)` | A zone colour as `rgba()` with transparency |
+| `softField(ctx, rect, hex, stops)` | Paints an edgeless colour field over a zone, fading out at every edge |
 | `loadCss(url)` | Adds the theme's stylesheet once, e.g. `kit.loadCss(new URL('theme.css', import.meta.url))` |
 
 Rules of thumb: animate towards each new `state` instead of jumping (polls arrive 1–4 times a second), put text in HTML rather than on the canvas so it stays crisp, and keep assets inside the theme folder.
