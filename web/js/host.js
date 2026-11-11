@@ -1,14 +1,31 @@
 // Facilitator screen: set up a room, show the QR code and poll the room.
 // How the room is drawn is up to the session's theme (web/themes/), loaded on demand.
+// A session is a sequence of up to four pages, each with its own question, theme, zones and colours.
+// "Next" saves the page's votes and starts the next page; after the last one the shared screen shows the results.
 import { PALETTE, RISO, call, fitCanvas, layout, showSplash, softField, withAlpha, zoneColors } from './common.js';
 import { DEFAULT_THEME, THEMES, findTheme, loadTheme } from '../themes/registry.js';
 
 const $ = (id) => document.getElementById(id);
 // Yes/no wordings for two-zone sessions, from data/wordings.json; one is picked at random as the default.
-const PRO_CON = await fetch('data/wordings.json')
-  .then((r) => r.json())
-  .then((list) => list.map((w) => [w.yes, w.no]))
-  .catch(() => []);
+// Colour palettes come from the shared palette collection; without it the built-in Riso inks are the only choice.
+const PALETTES_URL = 'https://tkjelsrud.github.io/color/palettes/sketch-palettes.json';
+const [PRO_CON, PALETTES] = await Promise.all([
+  fetch('data/wordings.json')
+    .then((r) => r.json())
+    .then((list) => list.map((w) => [w.yes, w.no]))
+    .catch(() => []),
+  fetch(PALETTES_URL, { signal: AbortSignal.timeout(3000) })
+    .then((r) => r.json())
+    .then((data) => data.palettes
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        family: p.family,
+        inks: p.fills.filter((hex) => /^#[0-9a-f]{6}$/i.test(hex)).map((hex) => ({ name: hex.toLowerCase(), hex: hex.toLowerCase() })),
+      }))
+      .filter((p) => p.id && p.inks.length >= 2))
+    .catch(() => []),
+]);
 const pair = PRO_CON.length ? PRO_CON[Math.floor(Math.random() * PRO_CON.length)] : ['Agree', 'Disagree'];
 
 const themeDefaults = () => findTheme($('theme').value).defaults;
@@ -21,6 +38,7 @@ const defaultNames = (n) =>
 const isDefaultName = (name) =>
   pair.includes(name) || /^Option \d$/.test(name) || THEMES.some((t) => t.defaults?.names.includes(name));
 const SESSION_KEY = 'hz-host';
+const MAX_PAGES = 4;
 
 const hideSplash = showSplash();
 
@@ -29,9 +47,20 @@ const hideSplash = showSplash();
 for (const t of THEMES) $('theme').append(new Option(t.name, t.id));
 $('theme').value = DEFAULT_THEME;
 
-function renderZoneCounts() {
+// Palettes grouped by family; the first option keeps the theme's own colours and the Riso inks.
+const families = new Map();
+for (const p of PALETTES) {
+  if (!families.has(p.family)) families.set(p.family, Object.assign(document.createElement('optgroup'), { label: p.family || 'other' }));
+  families.get(p.family).append(new Option(p.name, p.id));
+}
+$('palette').append(...families.values());
+$('palette').closest('label').hidden = !PALETTES.length;
+const chosenPalette = () => PALETTES.find((p) => p.id === $('palette').value);
+const inks = () => chosenPalette()?.inks || RISO;
+
+function renderZoneCounts(count) {
   const { minZones, maxZones } = findTheme($('theme').value);
-  const current = Number($('zone-count').value) || minZones;
+  const current = count || Number($('zone-count').value) || minZones;
   $('zone-count').innerHTML = '';
   for (let n = minZones; n <= maxZones; n++) $('zone-count').append(new Option(n, n));
   $('zone-count').value = Math.max(minZones, Math.min(maxZones, current));
@@ -39,8 +68,9 @@ function renderZoneCounts() {
   renderNameInputs();
 }
 
-// One Riso colour per zone: the theme's own colours if it has them, otherwise Green and Bright Red for the
-// first two and a random unused ink for the rest. Switching theme starts the colours over.
+// One colour per zone. With a palette chosen: its colours in order. Otherwise the theme's own colours if it
+// has them, or Green and Bright Red for the first two and a random unused Riso ink for the rest.
+// Switching theme or palette starts the colours over.
 let colors = [];
 $('theme').addEventListener('change', () => { colors = []; });
 
@@ -57,7 +87,8 @@ function renderNameInputs() {
   colors = colors.slice(0, n);
   while (colors.length < n) {
     const i = colors.length;
-    colors.push(themeDefaults()?.colors[i] || (i < 2 ? RISO[i].hex : randomFreeColor()));
+    const palette = chosenPalette()?.inks;
+    colors.push(palette ? palette[i % palette.length].hex : themeDefaults()?.colors[i] || (i < 2 ? RISO[i].hex : randomFreeColor()));
   }
 
   $('zone-names').innerHTML = '';
@@ -85,7 +116,7 @@ function openPalette(row, i) {
   if (wasOpen) return;
   const palette = document.createElement('div');
   palette.className = 'palette';
-  for (const ink of RISO) {
+  for (const ink of inks()) {
     const option = document.createElement('button');
     option.type = 'button';
     option.className = `swatch${ink.hex === colors[i] ? ' chosen' : ''}`;
@@ -104,10 +135,71 @@ function openPalette(row, i) {
 
 const closePalette = () => document.querySelector('.palette')?.remove();
 document.addEventListener('click', (e) => { if (!e.target.closest('.zone-row')) closePalette(); });
-$('theme').addEventListener('change', renderZoneCounts);
+$('theme').addEventListener('change', () => renderZoneCounts());
 $('zone-count').addEventListener('change', renderNameInputs);
+$('palette').addEventListener('change', () => { colors = []; renderNameInputs(); });
 $('rate').addEventListener('input', () => { $('rate-out').textContent = `${$('rate').value} Hz`; });
-renderZoneCounts();
+
+// --- pages: the form above edits one page at a time; the tabs switch between them ------
+
+let pages = [null], active = 0; // null = a new page with the defaults
+
+function readEditor() {
+  return {
+    question: $('question').value.trim(),
+    theme: $('theme').value,
+    palette: $('palette').value,
+    names: [...$('zone-names').querySelectorAll('input')].map((i) => i.value),
+    colors: [...colors],
+  };
+}
+
+function loadEditor(page) {
+  closePalette();
+  $('question').value = page?.question || '';
+  $('theme').value = page?.theme || DEFAULT_THEME;
+  if (page) $('palette').value = page.palette || ''; // a new page keeps the palette of the page before it
+  colors = page ? [...page.colors] : [];
+  $('zone-names').innerHTML = ''; // don't carry the last page's labels over
+  renderZoneCounts(page?.names.length);
+  if (page) $('zone-names').querySelectorAll('input').forEach((input, i) => { input.value = page.names[i]; });
+}
+
+function showPage(i) {
+  pages[active] = readEditor();
+  active = i;
+  loadEditor(pages[i]);
+  renderTabs();
+}
+
+function renderTabs() {
+  $('pages').innerHTML = '';
+  pages.forEach((_, i) => {
+    const tab = Object.assign(document.createElement('button'), { type: 'button', className: `tab${i === active ? ' active' : ''}`, textContent: `Page ${i + 1}` });
+    tab.addEventListener('click', () => showPage(i));
+    $('pages').append(tab);
+  });
+  if (pages.length < MAX_PAGES) {
+    const add = Object.assign(document.createElement('button'), { type: 'button', className: 'tab', textContent: '+ Add page' });
+    add.addEventListener('click', () => {
+      pages.push(null);
+      showPage(pages.length - 1);
+    });
+    $('pages').append(add);
+  }
+  $('remove-page').hidden = pages.length === 1;
+  $('start').textContent = pages.length > 1 ? `Start session (${pages.length} pages)` : 'Start session';
+}
+
+$('remove-page').addEventListener('click', () => {
+  pages.splice(active, 1);
+  active = Math.max(0, active - 1);
+  loadEditor(pages[active]);
+  renderTabs();
+});
+
+loadEditor(null);
+renderTabs();
 
 $('start').addEventListener('click', async () => {
   $('start').disabled = true;
@@ -118,10 +210,11 @@ $('start').addEventListener('click', async () => {
     $('start').disabled = false;
     return;
   }
-  const session = { code: body.code, token: body.token };
-  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch { /* reload loses the session */ }
-  const zones = [...$('zone-names').querySelectorAll('input')].map((i, n) => i.value.trim() || `Zone ${n + 1}`);
-  await command(session, { t: 'scene', zones, colors, theme: $('theme').value });
+  pages[active] = readEditor();
+  const plan = pages.map((p) => ({ ...p, names: p.names.map((name, n) => name.trim() || `Zone ${n + 1}`) }));
+  const session = { code: body.code, token: body.token, pages: plan, page: 0, results: [], finished: false };
+  save(session);
+  await command(session, sceneFor(plan[0]));
   await command(session, { t: 'config', hz: Number($('rate').value) });
   goLive(session);
 });
@@ -135,6 +228,13 @@ else hideSplash();
 
 function command(session, msg) {
   return call(`/rooms/${session.code}/host`, { token: session.token, ...msg });
+}
+
+const sceneFor = (page) => ({ t: 'scene', zones: page.names, colors: page.colors, theme: page.theme, question: page.question });
+
+// The session survives a reload, including where in the sequence it is and the votes saved so far.
+function save(session) {
+  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch { /* reload loses the session */ }
 }
 
 // --- theme -----------------------------------------------------------------------
@@ -174,8 +274,11 @@ function unpack(state) {
 // --- live ----------------------------------------------------------------------
 
 let polling = true, rate = 2;
+let counts = []; // the current page's latest votes, saved when the host moves on
 
 function goLive(session) {
+  session.pages ||= []; // a session saved before pages existed
+  session.results ||= [];
   $('setup').hidden = true;
   $('live').hidden = false;
   history.replaceState(null, '', `?room=${session.code}`);
@@ -188,15 +291,16 @@ function goLive(session) {
   $('code').textContent = session.code;
   $('join-url').textContent = joinUrl.replace(/^https?:\/\//, '');
 
-  $('live-rate').addEventListener('input', () => { $('live-rate-out').textContent = `${$('live-rate').value} Hz`; });
-  $('live-rate').addEventListener('change', () => command(session, { t: 'config', hz: Number($('live-rate').value) }));
   $('reset').addEventListener('click', () => command(session, { t: 'reset' }));
+  $('next').addEventListener('click', () => next(session));
   $('end').addEventListener('click', async () => {
     if (!confirm('End the session for everyone?')) return;
     const { status, body } = await command(session, { t: 'close' });
-    ended(status === 200 ? body : null);
+    ended(session, status === 200 ? body : null);
   });
 
+  showProgress(session);
+  if (session.finished) showResults(session);
   poll(session);
   requestAnimationFrame(frame);
 }
@@ -208,12 +312,16 @@ async function poll(session) {
     const { status, body } = await call(`/rooms/${session.code}/state?token=${encodeURIComponent(session.token)}`);
     if (!polling) return;
     if (status === 200 && body.zones) {
-      if (body.theme !== themeId) await useTheme(body.theme);
-      theme?.update(unpack(body));
+      if (!session.finished) {
+        if (body.theme !== themeId) await useTheme(body.theme);
+        theme?.update(unpack(body));
+        const page = session.pages[session.page];
+        if (!page || body.zones.join('\n') === page.names.join('\n')) counts = body.counts; // not a view from before the last scene change
+      }
       showStats(body);
       if (first) { hideSplash(); first = false; }
     } else if (status === 404 || status === 410 || status === 403) {
-      ended(null, status === 410 ? 'The session was closed.' : 'This session no longer exists.');
+      ended(session, null, status === 410 ? 'The session was closed.' : 'This session no longer exists.');
       return;
     } else if (status !== 200) {
       $('stats').textContent = 'Reconnecting…';
@@ -226,10 +334,81 @@ async function poll(session) {
 function showStats(state) {
   rate = state.rate;
   $('stats').textContent = `${state.n} ${state.n === 1 ? 'player' : 'players'} · ${state.rate} Hz`;
-  if (document.activeElement !== $('live-rate')) {
-    $('live-rate').value = state.hostHz;
-    $('live-rate-out').textContent = state.rate < state.hostHz ? `${state.hostHz} Hz (room uses ${state.rate})` : `${state.hostHz} Hz`;
+}
+
+// --- pages ---------------------------------------------------------------------
+
+function showProgress(session) {
+  const many = session.pages.length > 1, page = session.pages[session.page];
+  $('progress').hidden = !many;
+  $('progress').textContent = session.finished ? 'Results' : `Page ${session.page + 1} of ${session.pages.length}`;
+  $('next').hidden = !many || session.finished;
+  $('next').textContent = session.page + 1 < session.pages.length ? `Next: page ${session.page + 2}` : 'Show results';
+  $('reset').hidden = session.finished;
+  const title = session.finished ? 'Results' : page?.question;
+  $('live-question').textContent = title || '';
+  $('live-question').hidden = !title;
+}
+
+// Save this page's votes, then start the next page (which clears the votes) or show the results.
+async function next(session) {
+  $('next').disabled = true;
+  const page = session.pages[session.page];
+  session.results.push({ question: page.question, zones: page.names, colors: page.colors, counts: page.names.map((_, z) => counts[z] || 0) });
+  counts = [];
+  session.page += 1;
+  if (session.page < session.pages.length) {
+    await command(session, sceneFor(session.pages[session.page]));
+  } else {
+    session.finished = true;
+    await command(session, { t: 'finish' });
+    showResults(session);
   }
+  save(session);
+  showProgress(session);
+  setTimeout(() => { $('next').disabled = false; }, 1000); // no double clicks past a page
+}
+
+function showResults(session) {
+  theme?.destroy();
+  theme = null;
+  themeId = null;
+  const view = document.createElement('div');
+  view.className = 'results-view';
+  view.append(resultsTable(session.results));
+  $('stage').replaceChildren(view);
+}
+
+// One row per question: the question and its vote total, a bar split by the votes, and each option's count.
+function resultsTable(results) {
+  const table = document.createElement('table');
+  table.className = 'results';
+  results.forEach((page, i) => {
+    const total = page.counts.reduce((a, b) => a + b, 0), top = Math.max(...page.counts);
+    const colors = zoneColors(page.zones, page.colors);
+    const row = table.insertRow();
+    const q = row.insertCell();
+    q.className = 'q';
+    q.textContent = `${i + 1}. ${page.question || `Page ${i + 1}`}`;
+    q.append(Object.assign(document.createElement('small'), { textContent: `${total} ${total === 1 ? 'vote' : 'votes'}` }));
+    const cell = row.insertCell();
+    const bar = Object.assign(document.createElement('div'), { className: 'bar' });
+    const options = Object.assign(document.createElement('div'), { className: 'options' });
+    page.zones.forEach((name, z) => {
+      const share = total ? page.counts[z] / total : 0;
+      const part = document.createElement('span');
+      part.style.cssText = `width: ${share * 100}%; background: ${colors[z]}`;
+      bar.append(part);
+      const option = Object.assign(document.createElement('span'), { className: `option${top > 0 && page.counts[z] === top ? ' lead' : ''}` });
+      option.style.setProperty('--zone', colors[z]);
+      option.append(Object.assign(document.createElement('span'), { className: 'dot' }), name);
+      option.append(Object.assign(document.createElement('b'), { textContent: `${page.counts[z]}` }));
+      if (total) option.append(`${Math.round(share * 100)}%`);
+      options.append(option);
+    });
+    cell.append(bar, options);
+  });
+  return table;
 }
 
 let last = performance.now();
@@ -243,7 +422,7 @@ function frame(t) {
 
 // --- end -----------------------------------------------------------------------
 
-function ended(summary, text = 'Thanks for facilitating.') {
+function ended(session, summary, text = 'Thanks for facilitating.') {
   polling = false;
   theme?.destroy();
   theme = null;
@@ -253,19 +432,19 @@ function ended(summary, text = 'Thanks for facilitating.') {
   $('ended').hidden = false;
   hideSplash();
   $('ended-text').textContent = text;
+  // Ended before the results: the page on screen counts too, with the room's final votes.
+  const page = session.pages[session.page];
+  if (summary && page && !session.finished) {
+    session.results.push({ question: page.question, zones: page.names, colors: page.colors, counts: summary.zones.map((z) => z.votes) });
+  }
+  if (session.results.length) $('summary').replaceChildren(resultsTable(session.results));
   if (!summary) return;
 
   const minutes = Math.round(summary.durationSeconds / 60);
-  $('ended-text').textContent = `${summary.peakPlayers} players at most, ${minutes} min. Final votes:`;
-  $('summary').innerHTML = '';
-  for (const zone of summary.zones) {
-    const li = document.createElement('li');
-    li.append(Object.assign(document.createElement('span'), { textContent: zone.name }));
-    li.append(Object.assign(document.createElement('span'), { textContent: `${zone.votes}` }));
-    $('summary').append(li);
-  }
+  $('ended-text').textContent = `${summary.peakPlayers} ${summary.peakPlayers === 1 ? 'player' : 'players'} at most, ${minutes} min.`;
   const link = $('download');
-  link.href = URL.createObjectURL(new Blob([JSON.stringify(summary, null, 2)], { type: 'application/json' }));
+  const data = { ...summary, pages: session.results };
+  link.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
   link.download = `hotzones-${summary.startedAt.slice(0, 10)}.json`;
   link.hidden = false;
 }

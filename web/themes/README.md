@@ -32,7 +32,7 @@ export function mount(stage, kit) {
 | Field | Meaning |
 | --- | --- |
 | `zones` | Zone names, 2–6 |
-| `colors` | One hex colour per zone (Riso inks, chosen by the facilitator) |
+| `colors` | One hex colour per zone (from the palette the facilitator chose) |
 | `counts` | Votes per zone |
 | `n` | Players in the room |
 | `grid` | Cells per zone each way (32) |

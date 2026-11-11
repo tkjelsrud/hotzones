@@ -60,7 +60,13 @@ async function checkIn(msg) {
   inFlight = false;
   if (status === 200) {
     Object.assign(room, body);
+    if (body.finished) {
+      end('Thanks for voting!', 'The results are on the shared screen.');
+      return;
+    }
     if (!finger) vote = body.you ? { z: body.you[0], u: body.you[1], v: body.you[2] } : null;
+    $('question').textContent = body.question || '';
+    $('question').hidden = !body.question;
     updateStatus();
     if (!joined) {
       joined = true;
@@ -134,10 +140,10 @@ function move(e) {
 
 // --- drawing -----------------------------------------------------------------------
 
-const STATUS_HEIGHT = 36;
-
+// The zones start below the status line and the question.
 function zoneRects(w, h) {
-  return layout(room.zones.length, w, h - STATUS_HEIGHT, findTheme(room.theme).phoneLayout).map((r) => ({ ...r, y: r.y + STATUS_HEIGHT }));
+  const top = $('top').offsetHeight;
+  return layout(room.zones.length, w, h - top, findTheme(room.theme).phoneLayout).map((r) => ({ ...r, y: r.y + top }));
 }
 
 function draw() {

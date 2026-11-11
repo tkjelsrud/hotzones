@@ -28,7 +28,7 @@ open http://192.168.1.23:8787/host.html
 | Method | Path | Who | Body / reply |
 | --- | --- | --- | --- |
 | POST | `/rooms` | host | → `{ code, token }` |
-| POST | `/rooms/{code}/host` | host | `{ token, t: "scene", zones: [...] }`, `{ token, t: "config", hz }`, `{ token, t: "reset" }`, `{ token, t: "close" }` (→ summary) |
+| POST | `/rooms/{code}/host` | host | `{ token, t: "scene", zones: [...], colors, theme, question }` (clears the votes), `{ token, t: "config", hz }`, `{ token, t: "reset" }`, `{ token, t: "finish" }` (phones show "results on screen"), `{ token, t: "close" }` (→ summary) |
 | GET | `/rooms/{code}/state?token=` | host | → `{ zones, grid, counts, heat, dots, n, rate, hostHz }` |
 | POST | `/rooms/{code}/play` | phone | `{ pid, t: "pos", z, u, v }`, `{ pid, t: "lift" }` or `{ pid }` → `{ zones, grid, counts, n, rate }` |
 

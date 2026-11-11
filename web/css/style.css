@@ -56,7 +56,7 @@ input[type="range"] { padding: 0; accent-color: var(--accent); }
 .brand { display: flex; align-items: center; gap: 12px; }
 .field { display: flex; flex-direction: column; gap: 6px; color: var(--muted); }
 
-/* Zone label rows: a colour swatch that opens the Riso palette, then the name. */
+/* Zone label rows: a colour swatch that opens the chosen palette, then the name. */
 .zone-row { position: relative; display: flex; gap: 8px; }
 .zone-row input { flex: 1; min-width: 0; }
 .swatch {
@@ -124,18 +124,40 @@ input[type="range"] { padding: 0; accent-color: var(--accent); }
 .join-url { font-size: 0.85rem; color: var(--muted); text-align: center; word-break: break-all; }
 .stats { font-size: 1.1rem; font-weight: 600; }
 .sidebar .spacer { flex: 1; }
-.summary { list-style: none; padding: 0; margin: 0; }
-.summary li { display: flex; justify-content: space-between; padding: 6px 0; }
+.progress { color: var(--muted); }
+
+/* Setup: one tab per page (question) in the sequence. */
+.tabs { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tab-list { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; }
+.tab { padding: 8px 14px; color: var(--text); background: rgba(255, 255, 255, 0.07); }
+.tab.active { color: var(--bg); background: var(--text); }
+button.link { padding: 8px 4px; color: var(--muted); background: none; font-weight: 500; }
+
+/* Live: the question above the theme's stage. */
+.stage-col { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.stage-col .stage { flex: 1; }
+.live-question { margin: 0; padding: 20px 24px 8px; font-size: clamp(20px, 2.4vw, 38px); text-align: center; }
+
+/* Results: one row per question, a bar split by the votes and the options with counts. */
+.results-view { height: 100%; overflow: auto; padding: 8px 32px 32px; }
+.results { width: 100%; border-collapse: collapse; }
+.results td { padding: 14px 10px; vertical-align: top; border-bottom: 1px solid var(--line); }
+.results .q { width: 34%; font-weight: 600; font-size: clamp(15px, 1.5vw, 22px); }
+.results .q small { display: block; margin-top: 4px; font-weight: 400; color: var(--muted); font-size: 0.75em; }
+.results .bar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: rgba(255, 255, 255, 0.08); margin-bottom: 10px; }
+.results .options { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: clamp(14px, 1.3vw, 19px); }
+.results .option { display: inline-flex; align-items: baseline; gap: 6px; color: var(--muted); }
+.results .option b { color: var(--text); }
+.results .option.lead { color: var(--text); }
+.results .option.lead b { color: var(--zone); }
+.results .dot { width: 0.6em; height: 0.6em; border-radius: 50%; background: var(--zone); align-self: center; }
 
 /* Player */
 body.play { overscroll-behavior: none; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .game { position: fixed; inset: 0; }
 .game canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+.top { position: absolute; top: 0; left: 0; right: 0; pointer-events: none; }
 .status {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
   padding: 8px 16px;
   font-size: 0.85rem;
   color: var(--muted);
@@ -143,9 +165,11 @@ body.play { overscroll-behavior: none; touch-action: none; -webkit-user-select: 
   display: flex;
   justify-content: space-between;
 }
+.question { padding: 0 16px 10px; font-size: 1.1rem; font-weight: 600; line-height: 1.25; text-align: center; }
 
 @media (max-width: 700px) {
   .live { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
   .sidebar { background: linear-gradient(to bottom, transparent, var(--surface) 40px); }
   .qr { max-width: 160px; margin: 0 auto; }
 }
+#ended.panel { max-width: 900px; }

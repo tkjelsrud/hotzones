@@ -20,7 +20,8 @@ GRID = 32                # cells per zone, each way
 MAX_PLAYERS = 250
 MAX_ROOMS = 50
 MSG_BUDGET = 300         # player requests per second per room, shared by all players
-MAX_BODY = 256           # bytes
+MAX_BODY = 256           # bytes, for player requests
+MAX_HOST_BODY = 1024     # bytes, for host commands (a scene with six labels and a question)
 MAX_TICK_HZ = 4
 LIVE_TIMEOUT = 5         # seconds without a position before a finger counts as lifted
 PLAYER_TIMEOUT = 60      # seconds without any request before a player (and their vote) counts as gone
@@ -64,6 +65,8 @@ class Room:
         self.zones = []
         self.colors = []  # one hex colour per zone, chosen by the host; empty = clients pick
         self.theme = "heatmap"  # only stored and passed on; themes are drawn by the clients
+        self.question = ""      # what the current scene asks, shown on the shared screen and the phones
+        self.finished = False   # the host has moved past the last scene to the results
         self.heat = None
         self.dwell = []    # seconds of finger time per zone, for the summary
         self.counts = []
@@ -113,7 +116,8 @@ class Room:
 
         p.seen = self.last_active = now
         return 200, {
-            "zones": self.zones, "colors": self.colors, "theme": self.theme, "grid": GRID, "counts": self.counts, "n": len(self.players), "rate": self.rate,
+            "zones": self.zones, "colors": self.colors, "theme": self.theme, "question": self.question, "finished": self.finished,
+            "grid": GRID, "counts": self.counts, "n": len(self.players), "rate": self.rate,
             "you": [p.z, p.u, p.v] if p.voted else None,
         }
 
@@ -133,7 +137,11 @@ class Room:
             colors = msg.get("colors")
             valid = isinstance(colors, list) and len(colors) == len(self.zones)
             self.colors = [c.lower() for c in colors] if valid and all(isinstance(c, str) and HEX_COLOR.fullmatch(c) for c in colors) else []
+            self.question = str(msg.get("question", ""))[:120]
+            self.finished = False
             self.clear_votes()
+        elif t == "finish":
+            self.finished = True
         elif t == "config":
             try:
                 self.host_hz = max(1, min(10, round(float(msg.get("hz")))))
@@ -204,7 +212,8 @@ class Room:
 
         self.counts = counts
         self.host_view = {
-            "zones": self.zones, "colors": self.colors, "theme": self.theme, "grid": GRID, "counts": counts, "heat": sparse, "dots": dots,
+            "zones": self.zones, "colors": self.colors, "theme": self.theme, "question": self.question, "finished": self.finished,
+            "grid": GRID, "counts": counts, "heat": sparse, "dots": dots,
             "n": len(self.players), "rate": self.rate, "hostHz": self.host_hz,
         }
 
@@ -252,10 +261,10 @@ def reply(request, body, status=200):
     return web.json_response(body, status=status, headers=headers)
 
 
-async def read_body(request):
+async def read_body(request, limit=MAX_BODY):
     """Bodies are sent as text/plain JSON so browsers skip the CORS preflight."""
-    raw = await request.content.read(MAX_BODY + 1)
-    if len(raw) > MAX_BODY:
+    raw = await request.content.read(limit + 1)
+    if len(raw) > limit:
         return None
     try:
         msg = json.loads(raw or b"{}")
@@ -331,7 +340,7 @@ async def host_command(request):
     room, error = find_room(request)
     if error:
         return error
-    msg = await read_body(request)
+    msg = await read_body(request, MAX_HOST_BODY)
     if msg is None or msg.get("token") != room.token:
         return reply(request, {"error": "not the host"}, 403)
     return reply(request, room.host_command(msg))
