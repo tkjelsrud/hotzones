@@ -1,5 +1,7 @@
 // Tug of war: two teams pull a rope, and the knot slides towards the side with more votes.
 // Players with a finger down lean back and pull; resting votes stand and hold.
+// With a palette (state.paper and state.ink) the sunset scene becomes a flat print: paper sky, ink ground and
+// rope, each team's half of the field and its figures in the team's colour.
 
 const MAX_SHOWN = 10;   // figures drawn per side; the rest show as "+N"
 const MAX_TRAVEL = 0.6; // how far the knot can move, as a share of the half rope
@@ -19,12 +21,18 @@ export function mount(stage, kit) {
   const figures = new Map(); // id -> { id, side, down, color, x }
   const dust = [];
   let pulling = 0, time = 0;
+  let look = null; // { paper, ink, teams: [left, right] } with a palette, null for the sunset scene
 
   return {
     update(state) {
       const [left = 0, right = 0] = state.counts;
       const total = left + right;
       rope.target = total ? ((right - left) / total) * MAX_TRAVEL : 0;
+
+      look = state.paper ? { paper: state.paper, ink: state.ink, teams: state.colors.slice(0, 2) } : null;
+      for (const el of [...banners, shout]) el.style.color = look ? look.ink : '';
+      banners.forEach((b) => { b.style.background = look ? kit.withAlpha(look.paper, 0.75) : ''; });
+      shout.style.textShadow = look ? 'none' : '';
 
       state.zones.slice(0, 2).forEach((name, i) => {
         banners[i].querySelector('.tw-name').textContent = name;
@@ -61,24 +69,25 @@ export function mount(stage, kit) {
       rope.pos += rope.vel * dt;
       const knotX = w / 2 + rope.pos * w * 0.36;
 
-      drawScenery(ctx, w, h, groundY, s, time);
+      if (look) drawPrintScenery(ctx, w, h, groundY, s, look, kit);
+      else drawScenery(ctx, w, h, groundY, s, time);
 
       // Rope: sags a little, pulled tight from end to end.
-      ctx.strokeStyle = '#c9a26b';
+      ctx.strokeStyle = look ? look.ink : '#c9a26b';
       ctx.lineWidth = 6 * s;
       ctx.lineCap = 'round';
       ctx.beginPath();
       ctx.moveTo(knotX - w * 0.44, ropeY);
       ctx.quadraticCurveTo(knotX, ropeY + 5 * s, knotX + w * 0.44, ropeY);
       ctx.stroke();
-      ctx.strokeStyle = 'rgba(90, 60, 30, 0.35)';
+      ctx.strokeStyle = look ? kit.withAlpha(look.paper, 0.5) : 'rgba(90, 60, 30, 0.35)';
       ctx.lineWidth = 2 * s;
       ctx.setLineDash([6 * s, 8 * s]);
       ctx.stroke();
       ctx.setLineDash([]);
 
       // Knot ribbon.
-      ctx.fillStyle = '#e8333a';
+      ctx.fillStyle = look ? look.ink : '#e8333a';
       ctx.beginPath();
       ctx.moveTo(knotX - 7 * s, ropeY + 2 * s);
       ctx.lineTo(knotX + 7 * s, ropeY + 2 * s);
@@ -94,13 +103,13 @@ export function mount(stage, kit) {
         shown.forEach((fig, i) => {
           const tx = knotX + side * (80 * s + i * spacing);
           fig.x = fig.x === null ? tx : fig.x + (tx - fig.x) * (1 - Math.exp(-dt / 0.3));
-          drawFigure(ctx, fig, groundY, ropeY, s, time);
+          drawFigure(ctx, fig, groundY, ropeY, s, time, look);
           if (fig.down && Math.random() < dt * 4) {
             dust.push({ x: fig.x - side * 12 * s, y: groundY, vx: -side * (20 + Math.random() * 30) * s, vy: -(10 + Math.random() * 20) * s, life: 1 });
           }
         });
         if (team.length > shown.length) {
-          ctx.fillStyle = '#f6efe8';
+          ctx.fillStyle = look ? look.ink : '#f6efe8';
           ctx.font = `600 ${18 * s}px system-ui, sans-serif`;
           ctx.textAlign = side < 0 ? 'right' : 'left';
           ctx.fillText(`+${team.length - shown.length}`, knotX + side * (100 * s + shown.length * spacing), ropeY - 30 * s);
@@ -114,7 +123,7 @@ export function mount(stage, kit) {
         if (d.life <= 0) { dust.splice(i, 1); continue; }
         d.x += d.vx * dt;
         d.y += d.vy * dt;
-        ctx.fillStyle = `rgba(160, 120, 80, ${d.life * 0.5})`;
+        ctx.fillStyle = look ? kit.withAlpha(look.ink, d.life * 0.3) : `rgba(160, 120, 80, ${d.life * 0.5})`;
         ctx.beginPath();
         ctx.arc(d.x, d.y, (1.6 - d.life) * 8 * s, 0, Math.PI * 2);
         ctx.fill();
@@ -171,8 +180,47 @@ function drawScenery(ctx, w, h, groundY, s, time) {
   ctx.stroke();
 }
 
+// The palette's scene: paper sky, each team's half glowing in its colour, hills and ground in ink.
+function drawPrintScenery(ctx, w, h, groundY, s, look, kit) {
+  ctx.fillStyle = look.paper;
+  ctx.fillRect(0, 0, w, h);
+  look.teams.forEach((color, i) => {
+    kit.softField(ctx, { x: (i * w) / 2, y: 0, w: w / 2, h: groundY * 2 }, color, [[0, 0.75], [0.6, 0.45], [1, 0]]);
+  });
+
+  ctx.fillStyle = kit.withAlpha(look.ink, 0.16);
+  ctx.beginPath();
+  ctx.moveTo(0, groundY);
+  for (let x = 0; x <= w; x += w / 12) ctx.lineTo(x, groundY - (30 + 22 * Math.sin(x / w * 7 + 1)) * s);
+  ctx.lineTo(w, groundY);
+  ctx.fill();
+
+  // Ground: paper first so the team colours stop at the horizon, then each half tinted by its team.
+  ctx.fillStyle = look.paper;
+  ctx.fillRect(0, groundY, w, h - groundY);
+  look.teams.forEach((color, i) => {
+    ctx.fillStyle = kit.withAlpha(color, 0.55);
+    ctx.fillRect((i * w) / 2, groundY, w / 2, h - groundY);
+  });
+  ctx.fillStyle = kit.withAlpha(look.ink, 0.12);
+  ctx.fillRect(0, groundY, w, h - groundY);
+
+  // Mud pit and the centre line.
+  ctx.fillStyle = kit.withAlpha(look.ink, 0.45);
+  ctx.beginPath();
+  ctx.ellipse(w / 2, groundY + 18 * s, 70 * s, 14 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = look.ink;
+  ctx.lineWidth = 3 * s;
+  ctx.beginPath();
+  ctx.moveTo(w / 2, groundY + 36 * s);
+  ctx.lineTo(w / 2, h);
+  ctx.stroke();
+}
+
 // A chunky figure facing the centre. side -1 = left team, 1 = right team.
-function drawFigure(ctx, fig, groundY, ropeY, s, time) {
+// With a palette the figure is drawn in ink, with a paper face and the team's headband.
+function drawFigure(ctx, fig, groundY, ropeY, s, time, look) {
   const { side, down, x } = fig;
   const lean = down ? 0.55 + 0.08 * Math.sin(time * 9 + fig.id) : 0.16 + 0.03 * Math.sin(time * 2 + fig.id);
   const hipY = groundY - (down ? 26 : 32) * s;
@@ -180,7 +228,7 @@ function drawFigure(ctx, fig, groundY, ropeY, s, time) {
   const head = { x: shoulder.x + side * Math.sin(lean) * 13 * s, y: shoulder.y - Math.cos(lean) * 13 * s };
   const hands = { x: x - side * 22 * s, y: ropeY };
 
-  ctx.strokeStyle = fig.color;
+  ctx.strokeStyle = look ? look.ink : fig.color;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.lineWidth = 7 * s;
@@ -207,10 +255,14 @@ function drawFigure(ctx, fig, groundY, ropeY, s, time) {
     ctx.stroke();
   }
 
-  ctx.fillStyle = '#f3d2b3';
+  ctx.fillStyle = look ? look.paper : '#f3d2b3';
   ctx.beginPath();
   ctx.arc(head.x, head.y, 10 * s, 0, Math.PI * 2);
   ctx.fill();
+  if (look) {
+    ctx.lineWidth = 2 * s;
+    ctx.stroke();
+  }
   ctx.fillStyle = fig.team;
   ctx.fillRect(head.x - 10 * s, head.y - 6 * s, 20 * s, 4 * s); // headband in the team's colour
 }

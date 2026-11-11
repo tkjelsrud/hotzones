@@ -132,6 +132,10 @@ input[type="range"] { padding: 0; accent-color: var(--accent); }
 .tab { padding: 8px 14px; color: var(--text); background: rgba(255, 255, 255, 0.07); }
 .tab.active { color: var(--bg); background: var(--text); }
 button.link { padding: 8px 4px; color: var(--muted); background: none; font-weight: 500; }
+/* Templates: an option underneath the form, kept quiet. */
+.templates { padding-top: 14px; border-top: 1px solid var(--line); font-size: 0.85rem; }
+.templates .tab { padding: 5px 12px; font-weight: 500; }
+.templates button.link { padding: 5px 4px; }
 
 /* Live: the question above the theme's stage. */
 .stage-col { display: flex; flex-direction: column; min-width: 0; min-height: 0; }

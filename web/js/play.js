@@ -65,6 +65,7 @@ async function checkIn(msg) {
       return;
     }
     if (!finger) vote = body.you ? { z: body.you[0], u: body.you[1], v: body.you[2] } : null;
+    usePalette();
     $('question').textContent = body.question || '';
     $('question').hidden = !body.question;
     updateStatus();
@@ -140,6 +141,14 @@ function move(e) {
 
 // --- drawing -----------------------------------------------------------------------
 
+// The host's palette, if any, replaces the page's background and text colours.
+function usePalette() {
+  const on = Boolean(room.paper && room.ink), style = document.body.style;
+  const vars = { '--bg': room.paper, '--text': room.ink, '--muted': on ? withAlpha(room.ink, 0.65) : '' };
+  for (const [name, value] of Object.entries(vars)) on ? style.setProperty(name, value) : style.removeProperty(name);
+  style.color = on ? room.ink : '';
+}
+
 // The zones start below the status line and the question.
 function zoneRects(w, h) {
   const top = $('top').offsetHeight;
@@ -148,13 +157,15 @@ function zoneRects(w, h) {
 
 function draw() {
   const { ctx, w, h } = fitCanvas(pad);
-  ctx.fillStyle = '#545563';
+  const themed = Boolean(room.paper && room.ink);
+  const text = themed ? room.ink : '#f6efe8', muted = themed ? withAlpha(room.ink, 0.65) : '#cfd0d9';
+  ctx.fillStyle = themed ? room.paper : '#545563';
   ctx.fillRect(0, 0, w, h);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
   if (!room.zones.length) {
-    ctx.fillStyle = '#cfd0d9';
+    ctx.fillStyle = muted;
     ctx.font = '500 18px system-ui, sans-serif';
     ctx.fillText('Waiting for the facilitator…', w / 2, h / 2);
   }
@@ -166,16 +177,17 @@ function draw() {
     const mine = chosen && chosen.z === z;
     const pad = 6;
     // No edges: a soft field of the zone's colour, stronger for the zone you're in.
-    softField(ctx, r, colors[z], mine ? [[0, 0.6], [0.6, 0.3], [1, 0]] : [[0, 0.26], [0.6, 0.1], [1, 0]]);
+    const strong = [[0, themed ? 0.9 : 0.6], [0.6, themed ? 0.6 : 0.3], [1, 0]];
+    softField(ctx, r, colors[z], mine ? strong : themed ? [[0, 0.5], [0.65, 0.28], [1, 0]] : [[0, 0.26], [0.6, 0.1], [1, 0]]);
 
     let size = Math.max(16, Math.min(28, r.w / 9));
     ctx.font = `600 ${size}px system-ui, sans-serif`;
     const space = r.w - 2 * pad - 36, width = ctx.measureText(room.zones[z]).width;
     if (width > space) size = Math.max(11, (size * space) / width); // shrink long names to fit the zone
-    ctx.fillStyle = '#f6efe8';
+    ctx.fillStyle = text;
     ctx.font = `600 ${size}px system-ui, sans-serif`;
     ctx.fillText(room.zones[z], r.x + r.w / 2, r.y + r.h / 2 - size * 0.6);
-    ctx.fillStyle = '#cfd0d9';
+    ctx.fillStyle = muted;
     ctx.font = `500 ${size * 0.6}px system-ui, sans-serif`;
     const count = room.counts[z] || 0;
     ctx.fillText(`${count} ${count === 1 ? 'vote' : 'votes'}`, r.x + r.w / 2, r.y + r.h / 2 + size * 0.6);

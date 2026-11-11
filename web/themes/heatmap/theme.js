@@ -1,4 +1,6 @@
 // Heatmap: zones glow where people vote, with a dot per player and big counters.
+// With a palette (state.paper and state.ink) the stage takes the palette's background and text colour,
+// the zones are filled more strongly and the heat is the zone's own colour instead of fire.
 
 const PAD = 6;
 const HEAT_STOPS = [ // value, r, g, b, alpha
@@ -27,7 +29,7 @@ export function mount(stage, kit) {
   const labels = stage.querySelector('.hm-labels');
   const cellCanvas = document.createElement('canvas');
 
-  let zones = [], colors = [], grid = 32, counts = [];
+  let zones = [], colors = [], paper = null, ink = null, grid = 32, counts = [];
   let heatTarget = new Float32Array(0), heatNow = new Float32Array(0);
   const dots = new Map(); // id -> { x, y, z, u, v, down }
 
@@ -55,9 +57,13 @@ export function mount(stage, kit) {
 
   return {
     update(state) {
-      if ([...state.zones, ...state.colors].join('\n') !== [...zones, ...colors].join('\n')) {
+      if ([...state.zones, ...state.colors, state.paper, state.ink].join('\n') !== [...zones, ...colors, paper, ink].join('\n')) {
         zones = state.zones;
         colors = state.colors;
+        ({ paper, ink } = state);
+        labels.style.color = ink || '';
+        if (ink) labels.style.setProperty('--muted', kit.withAlpha(ink, 0.65));
+        else labels.style.removeProperty('--muted');
         heatNow = new Float32Array(state.heat.length);
         dots.clear();
         renderLabels();
@@ -86,7 +92,7 @@ export function mount(stage, kit) {
     frame(dt) {
       const ease = 1 - Math.exp(-dt / 0.25); // reaches a new state in about half a second
       const { ctx, w, h } = kit.fitCanvas(canvas);
-      ctx.fillStyle = '#545563';
+      ctx.fillStyle = paper || '#545563';
       ctx.fillRect(0, 0, w, h);
       const G = grid;
       const rects = kit.layout(zones.length, w, h);
@@ -99,10 +105,12 @@ export function mount(stage, kit) {
 
       rects.forEach((r, z) => {
         // No edges: each zone is a soft field of its colour that fades out towards its sides.
-        kit.softField(ctx, r, colors[z], [[0, 0.24], [0.6, 0.1], [1, 0]]);
+        kit.softField(ctx, r, colors[z], paper ? [[0, 0.6], [0.65, 0.35], [1, 0]] : [[0, 0.24], [0.6, 0.1], [1, 0]]);
 
+        const n = parseInt(colors[z].slice(1), 16);
         for (let c = 0; c < G * G; c++) {
-          const [red, green, blue, alpha] = heatColor(Math.min(1, heatNow[z * G * G + c]));
+          const v = Math.min(1, heatNow[z * G * G + c]);
+          const [red, green, blue, alpha] = paper ? [n >> 16, (n >> 8) & 255, n & 255, Math.min(1, v * 1.5)] : heatColor(v);
           img.data.set([red, green, blue, alpha * 255], c * 4);
         }
         cells.putImageData(img, 0, 0);
@@ -127,7 +135,7 @@ export function mount(stage, kit) {
         ctx.fillStyle = colors[dot.z]; // dots take their zone's colour
         ctx.fill();
         ctx.lineWidth = 2;
-        ctx.strokeStyle = dot.down ? '#f6efe8' : '#545563';
+        ctx.strokeStyle = dot.down ? ink || '#f6efe8' : paper || '#545563';
         ctx.stroke();
         ctx.globalAlpha = 1;
       }

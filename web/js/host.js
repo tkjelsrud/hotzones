@@ -2,6 +2,7 @@
 // How the room is drawn is up to the session's theme (web/themes/), loaded on demand.
 // A session is a sequence of up to four pages, each with its own question, theme, zones and colours.
 // "Next" saves the page's votes and starts the next page; after the last one the shared screen shows the results.
+// The setup form always edits a template: a set of pages kept in this browser, so it can be prepared ahead.
 import { PALETTE, RISO, call, fitCanvas, layout, showSplash, softField, withAlpha, zoneColors } from './common.js';
 import { DEFAULT_THEME, THEMES, findTheme, loadTheme } from '../themes/registry.js';
 
@@ -21,6 +22,8 @@ const [PRO_CON, PALETTES] = await Promise.all([
         id: p.id,
         name: p.name,
         family: p.family,
+        paper: p.paper,
+        ink: p.ink,
         inks: p.fills.filter((hex) => /^#[0-9a-f]{6}$/i.test(hex)).map((hex) => ({ name: hex.toLowerCase(), hex: hex.toLowerCase() })),
       }))
       .filter((p) => p.id && p.inks.length >= 2))
@@ -36,7 +39,7 @@ const defaultNames = (n) =>
 
 // A name the host hasn't typed themselves, so it can be replaced when the theme or zone count changes.
 const isDefaultName = (name) =>
-  pair.includes(name) || /^Option \d$/.test(name) || THEMES.some((t) => t.defaults?.names.includes(name));
+  PRO_CON.some((p) => p.includes(name)) || /^Option \d$/.test(name) || THEMES.some((t) => t.defaults?.names.includes(name));
 const SESSION_KEY = 'hz-host';
 const MAX_PAGES = 4;
 
@@ -149,6 +152,8 @@ function readEditor() {
     question: $('question').value.trim(),
     theme: $('theme').value,
     palette: $('palette').value,
+    paper: chosenPalette()?.paper || '', // the palette's background and text colour; empty with the default colours
+    ink: chosenPalette()?.ink || '',
     names: [...$('zone-names').querySelectorAll('input')].map((i) => i.value),
     colors: [...colors],
   };
@@ -198,8 +203,104 @@ $('remove-page').addEventListener('click', () => {
   renderTabs();
 });
 
-loadEditor(null);
-renderTabs();
+// --- templates: sets of pages kept in this browser; every edit is saved as it is made ------
+
+const TEMPLATES_KEY = 'hz-templates', TEMPLATE_KEY = 'hz-template';
+const HOUSE = findTheme('ourhouse').defaults;
+const [GREEN, RED, , , SUNFLOWER, , BLUE, TEAL, , PURPLE] = RISO.map((ink) => ink.hex);
+const examplePage = (question, theme, names, colors) => ({ question, theme, palette: '', paper: '', ink: '', names, colors });
+const TEMPLATES = [
+  { id: 'blank', name: 'Blank', pages: [null] },
+  {
+    id: 'retro',
+    name: 'Sprint retro',
+    pages: [
+      examplePage('How was this sprint?', 'heatmap', ['Great', 'OK', 'Rough'], [GREEN, SUNFLOWER, RED]),
+      examplePage('Did we reach the sprint goal?', 'tugofwar', ['Yes', 'No'], [GREEN, RED]),
+      examplePage('How solid is what we shipped?', 'ourhouse', [...HOUSE.names], [...HOUSE.colors]),
+    ],
+  },
+  {
+    id: 'checkin',
+    name: 'Team check-in',
+    pages: [
+      examplePage('How is your energy today?', 'heatmap', ['Full', 'Good', 'Low', 'Empty'], [GREEN, TEAL, SUNFLOWER, RED]),
+      examplePage('Is the workload sustainable?', 'tugofwar', ['Yes', 'No'], [GREEN, RED]),
+      examplePage('How solid is our teamwork?', 'ourtown', [...HOUSE.names], [...HOUSE.colors]),
+    ],
+  },
+  {
+    id: 'decision',
+    name: 'Decision',
+    pages: [
+      examplePage('Should we go ahead?', 'tugofwar', ['Go', 'Wait'], [GREEN, RED]),
+      examplePage('How confident are you?', 'heatmap', ['Very', 'Somewhat', 'Not really'], [GREEN, SUNFLOWER, RED]),
+      examplePage('What matters most?', 'heatmap', ['Speed', 'Quality', 'Cost', 'Learning'], [BLUE, GREEN, SUNFLOWER, PURPLE]),
+    ],
+  },
+];
+
+function storedTemplates() {
+  try { return JSON.parse(localStorage.getItem(TEMPLATES_KEY)) || {}; } catch { return {}; }
+}
+
+const validPage = (p) =>
+  p === null || (Array.isArray(p?.names) && p.names.length >= 2 && p.names.length <= 6 && Array.isArray(p.colors) && p.colors.length === p.names.length);
+
+// The template as it was last edited here, or the original.
+function templatePages(id) {
+  const kept = storedTemplates()[id];
+  if (Array.isArray(kept) && kept.length >= 1 && kept.length <= MAX_PAGES && kept.every(validPage)) return kept;
+  return structuredClone(TEMPLATES.find((t) => t.id === id).pages);
+}
+
+let template = 'blank';
+try {
+  const last = localStorage.getItem(TEMPLATE_KEY);
+  if (TEMPLATES.some((t) => t.id === last)) template = last;
+} catch { /* start blank */ }
+
+function saveTemplate() {
+  pages[active] = readEditor();
+  try {
+    localStorage.setItem(TEMPLATES_KEY, JSON.stringify({ ...storedTemplates(), [template]: pages }));
+    localStorage.setItem(TEMPLATE_KEY, template);
+  } catch { /* edits last until the page is closed */ }
+}
+
+function openTemplate(id) {
+  template = id;
+  pages = templatePages(id);
+  active = 0;
+  loadEditor(pages[0]);
+  renderTabs();
+  renderTemplates();
+}
+
+function renderTemplates() {
+  $('templates').innerHTML = '';
+  for (const t of TEMPLATES) {
+    const tab = Object.assign(document.createElement('button'), { type: 'button', className: `tab${t.id === template ? ' active' : ''}`, textContent: t.name });
+    tab.addEventListener('click', () => {
+      saveTemplate();
+      openTemplate(t.id);
+    });
+    $('templates').append(tab);
+  }
+}
+
+$('reset-template').addEventListener('click', () => {
+  if (!confirm('Put this template back to how it started?')) return;
+  const kept = storedTemplates();
+  delete kept[template];
+  try { localStorage.setItem(TEMPLATES_KEY, JSON.stringify(kept)); } catch { /* nothing kept */ }
+  openTemplate(template);
+});
+
+// Typing, choosing and every button in the form (colours, pages) end up here, after their own handlers.
+for (const type of ['input', 'change', 'click']) $('setup').addEventListener(type, saveTemplate);
+
+openTemplate(template);
 
 $('start').addEventListener('click', async () => {
   $('start').disabled = true;
@@ -219,18 +320,13 @@ $('start').addEventListener('click', async () => {
   goLive(session);
 });
 
-// A reload with ?room=CODE picks the running session back up.
-const resumeCode = new URLSearchParams(location.search).get('room');
-let saved = null;
-try { saved = JSON.parse(sessionStorage.getItem(SESSION_KEY)); } catch { /* no saved session */ }
-if (resumeCode && saved?.code === resumeCode) goLive(saved);
-else hideSplash();
-
 function command(session, msg) {
   return call(`/rooms/${session.code}/host`, { token: session.token, ...msg });
 }
 
-const sceneFor = (page) => ({ t: 'scene', zones: page.names, colors: page.colors, theme: page.theme, question: page.question });
+const sceneFor = (page) => ({
+  t: 'scene', zones: page.names, colors: page.colors, paper: page.paper, ink: page.ink, theme: page.theme, question: page.question,
+});
 
 // The session survives a reload, including where in the sequence it is and the votes saved so far.
 function save(session) {
@@ -268,7 +364,8 @@ function unpack(state) {
   for (let i = 0; i < state.heat.length; i += 2) heat[state.heat[i]] = state.heat[i + 1] / 255;
   const players = state.dots.map(([id, z, u, v, down]) => ({ id, z, u, v, down: Boolean(down) }));
   const colors = zoneColors(state.zones, state.colors);
-  return { zones: state.zones, colors, counts: state.counts, n: state.n, grid: state.grid, heat, players };
+  const { paper, ink } = state;
+  return { zones: state.zones, colors, paper: paper && ink ? paper : null, ink: paper && ink ? ink : null, counts: state.counts, n: state.n, grid: state.grid, heat, players };
 }
 
 // --- live ----------------------------------------------------------------------
@@ -448,3 +545,12 @@ function ended(session, summary, text = 'Thanks for facilitating.') {
   link.download = `hotzones-${summary.startedAt.slice(0, 10)}.json`;
   link.hidden = false;
 }
+
+// --- resume --------------------------------------------------------------------
+
+// Last, once everything above is set up: a reload with ?room=CODE picks the running session back up.
+const resumeCode = new URLSearchParams(location.search).get('room');
+let saved = null;
+try { saved = JSON.parse(sessionStorage.getItem(SESSION_KEY)); } catch { /* no saved session */ }
+if (resumeCode && saved?.code === resumeCode) goLive(saved);
+else hideSplash();

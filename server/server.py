@@ -64,6 +64,8 @@ class Room:
         self.players = {}  # pid -> Player
         self.zones = []
         self.colors = []  # one hex colour per zone, chosen by the host; empty = clients pick
+        self.paper = ""    # background and text colour from the host's palette; empty = the clients' own
+        self.ink = ""
         self.theme = "heatmap"  # only stored and passed on; themes are drawn by the clients
         self.question = ""      # what the current scene asks, shown on the shared screen and the phones
         self.finished = False   # the host has moved past the last scene to the results
@@ -116,7 +118,8 @@ class Room:
 
         p.seen = self.last_active = now
         return 200, {
-            "zones": self.zones, "colors": self.colors, "theme": self.theme, "question": self.question, "finished": self.finished,
+            "zones": self.zones, "colors": self.colors, "paper": self.paper, "ink": self.ink,
+            "theme": self.theme, "question": self.question, "finished": self.finished,
             "grid": GRID, "counts": self.counts, "n": len(self.players), "rate": self.rate,
             "you": [p.z, p.u, p.v] if p.voted else None,
         }
@@ -137,6 +140,9 @@ class Room:
             colors = msg.get("colors")
             valid = isinstance(colors, list) and len(colors) == len(self.zones)
             self.colors = [c.lower() for c in colors] if valid and all(isinstance(c, str) and HEX_COLOR.fullmatch(c) for c in colors) else []
+            paper, ink = msg.get("paper"), msg.get("ink")
+            both = all(isinstance(c, str) and HEX_COLOR.fullmatch(c) for c in (paper, ink))
+            self.paper, self.ink = (paper.lower(), ink.lower()) if both else ("", "")
             self.question = str(msg.get("question", ""))[:120]
             self.finished = False
             self.clear_votes()
@@ -212,7 +218,8 @@ class Room:
 
         self.counts = counts
         self.host_view = {
-            "zones": self.zones, "colors": self.colors, "theme": self.theme, "question": self.question, "finished": self.finished,
+            "zones": self.zones, "colors": self.colors, "paper": self.paper, "ink": self.ink,
+            "theme": self.theme, "question": self.question, "finished": self.finished,
             "grid": GRID, "counts": counts, "heat": sparse, "dots": dots,
             "n": len(self.players), "rate": self.rate, "hostHz": self.host_hz,
         }

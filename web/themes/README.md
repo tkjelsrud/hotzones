@@ -33,6 +33,7 @@ export function mount(stage, kit) {
 | --- | --- |
 | `zones` | Zone names, 2–6 |
 | `colors` | One hex colour per zone (from the palette the facilitator chose) |
+| `paper`, `ink` | Background and text colour of the chosen palette, or `null` for the theme's own look |
 | `counts` | Votes per zone |
 | `n` | Players in the room |
 | `grid` | Cells per zone each way (32) |
