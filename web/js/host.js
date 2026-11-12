@@ -315,7 +315,13 @@ $('start').addEventListener('click', async () => {
   const plan = pages.map((p) => ({ ...p, names: p.names.map((name, n) => name.trim() || `Zone ${n + 1}`) }));
   const session = { code: body.code, token: body.token, pages: plan, page: 0, results: [], finished: false };
   save(session);
-  await command(session, sceneFor(plan[0]));
+  const scene = await command(session, sceneFor(plan[0]));
+  if (scene.status !== 200) { // e.g. a server older than these pages
+    try { sessionStorage.removeItem(SESSION_KEY); } catch { /* nothing saved */ }
+    $('setup-error').textContent = 'The server did not accept the first page, so the session was not started.';
+    $('start').disabled = false;
+    return;
+  }
   await command(session, { t: 'config', hz: Number($('rate').value) });
   goLive(session);
 });
